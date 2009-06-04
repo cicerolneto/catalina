@@ -18,6 +18,10 @@
  * 02110-1301 USA
  */
 
+#include <db.h>
+#include <string.h>
+#include <iris/iris.h>
+
 #include "catalina-storage.h"
 
 /**
@@ -28,11 +32,27 @@
  * #CatalinaStorage provides an asynchronous wrapper around Berkeley DB.
  */
 
+static void handle_message (IrisMessage     *message,
+                            CatalinaStorage *storage);
+
 G_DEFINE_TYPE (CatalinaStorage, catalina_storage, G_TYPE_OBJECT)
 
 struct _CatalinaStoragePrivate
 {
-	gpointer dummy;
+	gboolean      use_idle;
+
+	IrisPort     *port;
+	IrisReceiver *receiver;
+	IrisArbiter  *arbiter;
+};
+
+enum
+{
+	MESSAGE_0,
+	MESSAGE_OPEN,
+	MESSAGE_CLOSE,
+	MESSAGE_GET,
+	MESSAGE_SET,
 };
 
 static void
@@ -90,6 +110,14 @@ catalina_storage_init (CatalinaStorage *storage)
 	storage->priv = G_TYPE_INSTANCE_GET_PRIVATE (storage,
 	                                             CATALINA_TYPE_STORAGE,
 	                                             CatalinaStoragePrivate);
+
+	storage->priv->use_idle = TRUE;
+	storage->priv->port = iris_port_new ();
+	storage->priv->receiver = iris_arbiter_receive (NULL,
+	                                                storage->priv->port,
+	                                                (IrisMessageHandler)handle_message,
+	                                                storage, NULL);
+	storage->priv->arbiter = iris_arbiter_coordinate (storage->priv->receiver,NULL, NULL);
 }
 
 /**
@@ -381,3 +409,48 @@ catalina_storage_set (CatalinaStorage  *storage,
 	return FALSE;
 }
 
+static void
+handle_open (CatalinaStorage *storage,
+             IrisMessage     *message)
+{
+}
+
+static void
+handle_close (CatalinaStorage *storage,
+              IrisMessage     *message)
+{
+}
+
+static void
+handle_get (CatalinaStorage *storage,
+            IrisMessage     *message)
+{
+}
+
+static void
+handle_set (CatalinaStorage *storage,
+            IrisMessage     *message)
+{
+}
+
+static void
+handle_message (IrisMessage     *message,
+                CatalinaStorage *storage)
+{
+	switch (message->what) {
+	case MESSAGE_OPEN:
+		handle_open (storage, message);
+		break;
+	case MESSAGE_CLOSE:
+		handle_close (storage, message);
+		break;
+	case MESSAGE_GET:
+		handle_get (storage, message);
+		break;
+	case MESSAGE_SET:
+		handle_set (storage, message);
+		break;
+	default:
+		g_warning ("Invalid message sent to storage: %d", message->what);
+	}
+}
