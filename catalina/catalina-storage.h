@@ -52,59 +52,89 @@ struct _CatalinaStorageClass
 
 GType            catalina_storage_get_type     (void);
 CatalinaStorage* catalina_storage_new          (void);
-gboolean         catalina_storage_get_use_idle (CatalinaStorage      *storage);
-void             catalina_storage_set_use_idle (CatalinaStorage      *storage,
-                                                gboolean              use_idle);
-void             catalina_storage_open_async   (CatalinaStorage      *storage,
-                                                const gchar          *env_dir,
-                                                const gchar          *name,
-                                                GAsyncReadyCallback   callback,
-                                                gpointer              user_data);
-gboolean         catalina_storage_open_finish  (CatalinaStorage      *storage,
-                                                GAsyncResult         *result,
-						GError              **error);
-gboolean         catalina_storage_open         (CatalinaStorage      *storage,
-                                                const gchar          *env_dir,
-                                                const gchar          *name,
-                                                GError              **error);
-void             catalina_storage_close_async  (CatalinaStorage      *storage,
-                                                GAsyncReadyCallback   callback,
-                                                gpointer              user_data);
-gboolean         catalina_storage_close_finish (CatalinaStorage      *storage,
-                                                GAsyncResult         *result,
-                                                GError              **error);
-gboolean         catalina_storage_close        (CatalinaStorage      *storage,
-                                                GError              **error);
-void             catalina_storage_get_async    (CatalinaStorage      *storage,
-                                                const gchar          *key,
-                                                gssize                key_length,
-                                                GAsyncReadyCallback   callback,
-                                                GError               **error);
-gboolean         catalina_storage_get_finish   (CatalinaStorage      *storage,
-                                                GAsyncResult         *result,
-                                                gchar               **value,
-                                                gsize                *value_length,
-                                                GError              **error);
-gboolean         catalina_storage_get          (CatalinaStorage      *storage,
-                                                const gchar          *key,
-                                                gssize                key_length,
-                                                gchar               **value,
-                                                gsize                *value_length);
-void             catalina_storage_set_async    (CatalinaStorage      *storage,
-                                                const gchar          *key,
-                                                gssize                key_length,
-                                                const gchar          *value,
-                                                gssize                value_length,
-                                                GAsyncReadyCallback   callback,
-                                                gpointer              user_data);
-gboolean         catalina_storage_set_finish   (CatalinaStorage      *storage,
-                                                GAsyncResult *result,         GError **error);
-gboolean         catalina_storage_set          (CatalinaStorage      *storage,
-                                                const gchar          *key,
-                                                gssize                key_length,
-                                                const gchar          *value,
-                                                gssize                value_length,
-                                                GError              **error);
+gboolean         catalina_storage_get_use_idle     (CatalinaStorage      *storage);
+void             catalina_storage_set_use_idle     (CatalinaStorage      *storage,
+                                                    gboolean              use_idle);
+void             catalina_storage_open_async       (CatalinaStorage      *storage,
+                                                    const gchar          *env_dir,
+                                                    const gchar          *name,
+                                                    GAsyncReadyCallback   callback,
+                                                    gpointer              user_data);
+gboolean         catalina_storage_open_finish      (CatalinaStorage      *storage,
+                                                    GAsyncResult         *result,
+						    GError              **error);
+gboolean         catalina_storage_open             (CatalinaStorage      *storage,
+                                                    const gchar          *env_dir,
+                                                    const gchar          *name,
+                                                    GError              **error);
+void             catalina_storage_close_async      (CatalinaStorage      *storage,
+                                                    GAsyncReadyCallback   callback,
+                                                    gpointer              user_data);
+gboolean         catalina_storage_close_finish     (CatalinaStorage      *storage,
+                                                    GAsyncResult         *result,
+                                                    GError              **error);
+gboolean         catalina_storage_close            (CatalinaStorage      *storage,
+                                                    GError              **error);
+void             catalina_storage_get_async        (CatalinaStorage      *storage,
+                                                    const gchar          *key,
+                                                    gssize                key_length,
+                                                    GAsyncReadyCallback   callback,
+                                                    gpointer              user_data);
+gboolean         catalina_storage_get_finish       (CatalinaStorage      *storage,
+                                                    GAsyncResult         *result,
+                                                    gchar               **value,
+                                                    gsize                *value_length,
+                                                    GError              **error);
+gboolean         catalina_storage_get              (CatalinaStorage      *storage,
+                                                    const gchar          *key,
+                                                    gssize                key_length,
+                                                    gchar               **value,
+                                                    gsize                *value_length,
+                                                    GError              **error);
+void             catalina_storage_set_async        (CatalinaStorage      *storage,
+                                                    const gchar          *key,
+                                                    gssize                key_length,
+                                                    const gchar          *value,
+                                                    gssize                value_length,
+                                                    GAsyncReadyCallback   callback,
+                                                    gpointer              user_data);
+gboolean         catalina_storage_set_finish       (CatalinaStorage      *storage,
+                                                    GAsyncResult         *result,
+                                                    GError              **error);
+gboolean         catalina_storage_set              (CatalinaStorage      *storage,
+                                                    const gchar          *key,
+                                                    gssize                key_length,
+                                                    const gchar          *value,
+                                                    gssize                value_length,
+                                                    GError              **error);
+void             catalina_storage_get_value_async  (CatalinaStorage       *storage,
+                                                    const gchar           *key,
+                                                    gssize                 key_length,
+                                                    GAsyncReadyCallback    callback,
+                                                    gpointer               user_data);
+gboolean         catalina_storage_get_value_finish (CatalinaStorage       *storage,
+                                                    GAsyncResult          *result,
+                                                    GValue                *value,
+                                                    GError               **error);
+gboolean         catalina_storage_get_value        (CatalinaStorage       *storage,
+                                                    const gchar           *key,
+                                                    gssize                 key_length,
+                                                    GValue                *value,
+                                                    GError               **error);
+void             catalina_storage_set_value_async  (CatalinaStorage       *storage,
+                                                    const gchar           *key,
+                                                    gssize                 key_length,
+                                                    const GValue          *value,
+                                                    GAsyncReadyCallback    callback,
+                                                    gpointer               user_data);
+gboolean         catalina_storage_set_value_finish (CatalinaStorage       *storage,
+                                                    GAsyncResult          *result,
+                                                    GError               **error);
+gboolean         catalina_storage_set_value        (CatalinaStorage       *storage,
+                                                    const gchar           *key,
+                                                    gssize                 key_length,
+                                                    const GValue          *value,
+                                                    GError               **error);
 
 G_END_DECLS
 

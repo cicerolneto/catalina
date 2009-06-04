@@ -1,0 +1,92 @@
+/* catalina-storage-private.h
+ * 
+ * Copyright (C) 2009 Christian Hergert <chris@dronelabs.com>
+ * 
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Library General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA
+ * 02110-1301 USA
+ */
+
+#ifndef __CATALINA_STORAGE_PRIVATE_H__
+#define __CATALINA_STORAGE_PRIVATE_H__
+
+#include <db.h>
+#include <glib-object.h>
+#include <iris/iris.h>
+
+#include "catalina-storage.h"
+
+typedef struct _StorageTask StorageTask;
+
+struct _CatalinaStoragePrivate
+{
+	DB_ENV       *db_env;
+	DB           *db;
+	gboolean      use_idle;
+
+	IrisPort     *port;
+	IrisReceiver *receiver;
+	IrisArbiter  *arbiter;
+};
+
+struct _StorageTask
+{
+	CatalinaStorage     *storage;
+
+	union {
+		GSimpleAsyncResult *async_v;
+		gboolean            bool_v;
+	} result;
+
+	/* synchronization for synchronous tasks */
+	GMutex              *mutex;
+	GCond               *cond;
+
+	/* task information */
+	gchar               *key;
+	gsize                key_length;
+	gchar               *data;
+	gsize                data_length;
+	GValue               value;
+
+	/* task failure propagation */
+	GError              *error;
+};
+
+enum
+{
+	MESSAGE_0,
+	MESSAGE_OPEN,
+	MESSAGE_CLOSE,
+	MESSAGE_GET,
+	MESSAGE_GET_VALUE,
+	MESSAGE_SET,
+	MESSAGE_SET_VALUE,
+};
+
+enum
+{
+	PROP_0,
+	PROP_USE_IDLE,
+};
+
+static void         catalina_storage_handle_message (IrisMessage     *message, CatalinaStorage  *storage);
+static StorageTask* storage_task_new                (CatalinaStorage *storage, gboolean          is_async);
+static void         storage_task_free               (StorageTask     *task,    gboolean          free_key, gboolean  free_data);
+static gboolean     storage_task_wait               (StorageTask     *task,    GError          **error);
+static void         storage_task_complete           (StorageTask     *task,    gboolean          result,   GError   *error);
+static void         storage_task_succeed            (StorageTask     *task);
+static void         storage_task_fail               (StorageTask     *task,    GError            *error);
+
+#endif /* __CATALINA_STORAGE_PRIVATE_H__ */
