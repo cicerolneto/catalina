@@ -29,7 +29,14 @@
  * format.
  */
 
-G_DEFINE_TYPE (CatalinaBinaryFormatter, catalina_binary_formatter, G_TYPE_OBJECT)
+static void catalina_binary_formatter_base_init (CatalinaFormatterIface *iface);
+
+G_DEFINE_TYPE_EXTENDED (CatalinaBinaryFormatter,
+                        catalina_binary_formatter,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (CATALINA_TYPE_FORMATTER,
+                                               catalina_binary_formatter_base_init))
 
 struct _CatalinaBinaryFormatterPrivate
 {
@@ -96,7 +103,9 @@ catalina_binary_formatter_init (CatalinaBinaryFormatter *binary_formatter)
 /**
  * catalina_binary_formatter_new:
  *
- * Return value: 
+ * Creates a new instance of the binary formatter.
+ *
+ * Return value: the newly created #CatalinaBinaryFormatter instance
  */
 CatalinaFormatter*
 catalina_binary_formatter_new (void)
@@ -104,3 +113,29 @@ catalina_binary_formatter_new (void)
 	return g_object_new (CATALINA_TYPE_BINARY_FORMATTER, NULL);
 }
 
+static gboolean
+catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
+                                          const GValue       *value,
+                                          gchar             **buffer,
+                                          gsize              *buffer_length,
+                                          GError            **error)
+{
+	return TRUE;
+}
+
+static gboolean
+catalina_binary_formatter_real_deserialize (CatalinaFormatter  *formatter,
+                                            GValue             *value,
+                                            gchar              *buffer,
+                                            gsize               buffer_length,
+                                            GError            **error)
+{
+	return TRUE;
+}
+
+static void
+catalina_binary_formatter_base_init (CatalinaFormatterIface *iface)
+{
+	iface->serialize = catalina_binary_formatter_real_serialize;
+	iface->deserialize = catalina_binary_formatter_real_deserialize;
+}
