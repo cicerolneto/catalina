@@ -168,10 +168,10 @@ catalina_storage_set_use_idle (CatalinaStorage *storage,
 /**
  * catalina_storage_open_async:
  * @storage: A #CatalinaStorage
- * @gchar env_dir: A #const
- * @gchar name: A #const
+ * @env_dir: environment directory for database
+ * @name: name of the database
  * @callback: A #GAsyncReadyCallback
- * @user_data: A #gpointer
+ * @user_data: data for @callback
  */
 void
 catalina_storage_open_async (CatalinaStorage     *storage,
@@ -212,11 +212,11 @@ catalina_storage_open_finish (CatalinaStorage  *storage,
 /**
  * catalina_storage_open:
  * @storage: A #CatalinaStorage
- * @gchar env_dir: A #const
- * @gchar name: A #const
- * @error: A #GError
+ * @env_dir: the environment directory for the database
+ * @name: the name of the database
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_open (CatalinaStorage  *storage,
@@ -394,18 +394,20 @@ catalina_storage_get (CatalinaStorage  *storage,
 /**
  * catalina_storage_set_async:
  * @storage: A #CatalinaStorage
- * @gchar key: A #const
- * @key_length: A #gssize
- * @gchar value: A #const
- * @value_length: A #gssize
+ * @key: the key of which to assign @value
+ * @key_length: the length of @key in bytes
+ * @value: the content to store
+ * @value_length: the length of @value in bytes
  * @callback: A #GAsyncReadyCallback
- * @user_data: A #gpointer
+ * @user_data: data for @callback
+ *
+ * 
  */
 void
 catalina_storage_set_async (CatalinaStorage     *storage,
-                            const               gchar *key,
+                            const gchar         *key,
                             gssize               key_length,
-                            const               gchar *value,
+                            const gchar         *value,
                             gssize               value_length,
                             GAsyncReadyCallback  callback,
                             gpointer             user_data)
@@ -442,19 +444,19 @@ catalina_storage_set_finish (CatalinaStorage  *storage,
 /**
  * catalina_storage_set:
  * @storage: A #CatalinaStorage
- * @gchar key: A #const
- * @key_length: A #gssize
- * @gchar value: A #const
- * @value_length: A #gssize
- * @error: A #GError
+ * @key: the key of which to store @value
+ * @key_length: the length of @key in bytes
+ * @value: the data to store
+ * @value_length: the length of @data in bytes
+ * @error: A location for a #GError or %NULL
  *
  * Return value: 
  */
 gboolean
 catalina_storage_set (CatalinaStorage  *storage,
-                      const            gchar *key,
+                      const gchar      *key,
                       gssize            key_length,
-                      const            gchar *value,
+                      const gchar      *value,
                       gssize            value_length,
                       GError          **error)
 {
@@ -470,10 +472,10 @@ catalina_storage_set (CatalinaStorage  *storage,
 /**
  * catalina_storage_get_value_async:
  * @storage: A #CatalinaStorage
- * @gchar key: A #const
- * @key_length: A #gssize
+ * @key: the key to lookup
+ * @key_length: the length of @key in bytes
  * @callback: A #GAsyncReadyCallback
- * @user_data: A #gpointer
+ * @user_data: data for @callback
  */
 void
 catalina_storage_get_value_async (CatalinaStorage     *storage,
@@ -516,7 +518,7 @@ catalina_storage_get_value_finish (CatalinaStorage  *storage,
 /**
  * catalina_storage_get_value:
  * @storage: A #CatalinaStorage
- * @gchar key: A #const
+ * @key: A #const
  * @key_length: A #gssize
  * @value: A #GValue
  * @error: A #GError
@@ -542,17 +544,17 @@ catalina_storage_get_value (CatalinaStorage  *storage,
 /**
  * catalina_storage_set_value_async:
  * @storage: A #CatalinaStorage
- * @gchar key: A #const
+ * @key: A #const
  * @key_length: A #gssize
- * @GValue value: A #const
+ * @value: A #GValue
  * @callback: A #GAsyncReadyCallback
  * @user_data: A #gpointer
  */
 void
 catalina_storage_set_value_async (CatalinaStorage     *storage,
-                                  const               gchar *key,
+                                  const gchar         *key,
                                   gssize               key_length,
-                                  const               GValue *value,
+                                  const GValue        *value,
                                   GAsyncReadyCallback  callback,
                                   gpointer             user_data)
 {
@@ -588,9 +590,9 @@ catalina_storage_set_value_finish (CatalinaStorage  *storage,
 /**
  * catalina_storage_set_value:
  * @storage: A #CatalinaStorage
- * @gchar key: A #const
+ * @key: A #const
  * @key_length: A #gssize
- * @GValue value: A #const
+ * @value: A #GValue
  * @error: A #GError
  *
  * Return value: 
@@ -599,7 +601,7 @@ gboolean
 catalina_storage_set_value (CatalinaStorage  *storage,
                             const            gchar *key,
                             gssize            key_length,
-                            const            GValue *value,
+                            const GValue     *value,
                             GError          **error)
 {
 	CatalinaStoragePrivate *priv;
