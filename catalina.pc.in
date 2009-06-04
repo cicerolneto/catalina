@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${exec_prefix}/include
+
+Name: Catalina
+Description: Asynchronous storage engine for GObject
+Version: @VERSION@
+Libs: -L${libdir} -lcatalina-1.0
+Cflags: -I${includedir}/catalina-1.0
+Requires: gobject-2.0 iris-1.0

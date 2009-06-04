@@ -1,0 +1,78 @@
+#ifndef __CATALINA_VERSION_H__
+#define __CATALINA_VERSION_H__
+
+/**
+ * SECTION:catalina-version
+ * @title: Versioning API
+ * @short_description: compile-time version checking
+ *
+ * provides some API and definitions for compile-time version checking.
+ */
+
+/**
+ * CATALINA_MAJOR_VERSION:
+ *
+ * Major version of Catalina, e.g. 1 in "1.2.3"
+ */
+#define CATALINA_MAJOR_VERSION      (@CATALINA_MAJOR_VERSION@)
+
+/**
+ * CATALINA_MINOR_VERSION:
+ *
+ * Minor version of Catalina, e.g. 2 in "1.2.3"
+ */
+#define CATALINA_MINOR_VERSION      (@CATALINA_MINOR_VERSION@)
+
+/**
+ * CATALINA_MICRO_VERSION:
+ *
+ * Micro version of Catalina, e.g. 3 in "1.2.3"
+ */
+#define CATALINA_MICRO_VERSION      (@CATALINA_MICRO_VERSION@)
+
+/**
+ * CATALINA_API_VERSION_S:
+ *
+ * Version of the API of Catalina
+ */
+#define CATALINA_API_VERSION_S      "@CATALINA_API_VERSION@"
+
+/**
+ * CATALINA_VERSION_S:
+ *
+ * Stringified version of Catalina, e.g. "1.2.3".
+ *
+ * Useful for display.
+ */
+#define CATALINA_VERSION_S          "@CATALINA_VERSION@"
+
+/**
+ * CATALINA_VERSION_HEX:
+ *
+ * Hexadecimally encoded version of Catalina, e.g. 0x01020300"
+ *
+ * Useful for comparisons.
+ */
+#define CATALINA_VERSION_HEX        (CATALINA_MAJOR_VERSION << 24 | \
+                                  CATALINA_MINOR_VERSION << 16 | \
+                                  CATALINA_MICRO_VERSION <<  8)
+
+/**
+ * CATALINA_CHECK_VERSION:
+ * @major: major component of the version to check
+ * @minor: minor component of the version to check
+ * @micro: micro component of the version to check
+ *
+ * Checks whether the decomposed version (@major, @minor, @micro) is
+ * bigger than the version of Catalina. This is a compile-time
+ * check only.
+ */
+#define CATALINA_CHECK_VERSION(major,minor,micro)   \
+        (CATALINA_MAJOR_VERSION >= (major) ||       \
+         (CATALINA_MAJOR_VERSION == (major) &&      \
+          CATALINA_MINOR_VERSION > (minor)) ||      \
+         (CATALINA_MAJOR_VERSION == (major) &&      \
+          CATALINA_MINOR_VERSION == (minor) &&      \
+          CATALINA_MICRO_VERSION >= (micro)))
+
+#endif /* __CATALINA_VERSION_H__ */
