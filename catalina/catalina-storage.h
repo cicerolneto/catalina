@@ -24,6 +24,9 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 
+#include "catalina-formatter.h"
+#include "catalina-transform.h"
+
 G_BEGIN_DECLS
 
 #define CATALINA_TYPE_STORAGE            (catalina_storage_get_type())      
@@ -50,11 +53,8 @@ struct _CatalinaStorageClass
 	GObjectClass parent_class;
 };
 
-GType            catalina_storage_get_type     (void);
-CatalinaStorage* catalina_storage_new          (void);
-gboolean         catalina_storage_get_use_idle     (CatalinaStorage      *storage);
-void             catalina_storage_set_use_idle     (CatalinaStorage      *storage,
-                                                    gboolean              use_idle);
+GType            catalina_storage_get_type         (void);
+CatalinaStorage* catalina_storage_new              (void);
 void             catalina_storage_open_async       (CatalinaStorage      *storage,
                                                     const gchar          *env_dir,
                                                     const gchar          *name,
@@ -135,6 +135,16 @@ gboolean         catalina_storage_set_value        (CatalinaStorage       *stora
                                                     gssize                 key_length,
                                                     const GValue          *value,
                                                     GError               **error);
+
+gboolean         catalina_storage_get_use_idle    (CatalinaStorage   *storage);
+void             catalina_storage_set_use_idle    (CatalinaStorage   *storage,
+                                                   gboolean           use_idle);
+CatalinaFormatter* catalina_storage_get_formatter (CatalinaStorage   *storage);
+void               catalina_storage_set_formatter (CatalinaStorage   *storage,
+                                                   CatalinaFormatter *formatter);
+CatalinaTransform* catalina_storage_get_transform (CatalinaStorage   *storage);
+void               catalina_storage_set_transform (CatalinaStorage   *storage,
+                                                   CatalinaTransform *transform);
 
 G_END_DECLS
 

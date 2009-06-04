@@ -51,6 +51,7 @@ CFILE_GLOB=$(top_srcdir)/catalina/catalina-*.c
 # e.g. IGNORE_HFILES=gtkdebug.h gtkintl.h
 IGNORE_HFILES=				\
 	catalina.h			\
+	catalina-storage-private.h	\
 	$(NULL)
 
 EXTRA_HFILES=

@@ -22,8 +22,10 @@
 #include <string.h>
 #include <iris/iris.h>
 
+#include "catalina-formatter.h"
 #include "catalina-storage.h"
 #include "catalina-storage-private.h"
+#include "catalina-transform.h"
 
 /**
  * SECTION:catalina-storage
@@ -74,6 +76,15 @@ catalina_storage_finalize (GObject *object)
 static void
 catalina_storage_dispose (GObject *object)
 {
+	CatalinaStoragePrivate *priv;
+
+	priv = CATALINA_STORAGE (object)->priv;
+
+	g_object_unref (priv->transform);
+	priv->transform = NULL;
+
+	g_object_unref (priv->formatter);
+	priv->formatter = NULL;
 }
 
 static void
@@ -104,6 +115,32 @@ catalina_storage_class_init (CatalinaStorageClass *klass)
 	                                                       "loop.",
 	                                                       FALSE,
 	                                                       G_PARAM_READWRITE));
+
+	/**
+	 * CatalinaStorage:transform:
+	 *
+	 * The "transform" property.
+	 */
+	g_object_class_install_property (object_class,
+	                                 PROP_TRANSFORM,
+	                                 g_param_spec_object ("transform",
+	                                                      "Transform",
+	                                                      "Storage transform",
+	                                                      CATALINA_TYPE_TRANSFORM,
+	                                                      G_PARAM_READWRITE));
+
+	/**
+	 * CatalinaStorage:formatter:
+	 *
+	 * The "formatter" property.
+	 */
+	g_object_class_install_property (object_class,
+	                                 PROP_FORMATTER,
+	                                 g_param_spec_object ("formatter",
+	                                                      "Formatter",
+	                                                      "Storage formatter",
+	                                                      CATALINA_TYPE_FORMATTER,
+	                                                      G_PARAM_READWRITE));
 }
 
 static void
@@ -113,13 +150,28 @@ catalina_storage_init (CatalinaStorage *storage)
 	                                             CATALINA_TYPE_STORAGE,
 	                                             CatalinaStoragePrivate);
 
+	/* perform callbacks in main by default */
 	storage->priv->use_idle = TRUE;
-	storage->priv->port = iris_port_new ();
-	storage->priv->receiver = iris_arbiter_receive (NULL,
-	                                                storage->priv->port,
-	                                                (IrisMessageHandler)catalina_storage_handle_message,
-	                                                storage, NULL);
-	storage->priv->arbiter = iris_arbiter_coordinate (storage->priv->receiver,NULL, NULL);
+
+	/* message ports */
+	storage->priv->ex_port = iris_port_new ();
+	storage->priv->cn_port = iris_port_new ();
+
+	/* message receivers */
+	storage->priv->ex_receiver = iris_arbiter_receive (
+		NULL, storage->priv->ex_port,
+		(IrisMessageHandler)catalina_storage_ex_handle_message,
+		storage, NULL);
+	storage->priv->cn_receiver = iris_arbiter_receive (
+		NULL, storage->priv->cn_port,
+		(IrisMessageHandler)catalina_storage_cn_handle_message,
+		storage, NULL);
+
+	/* arbiter to handle concurrency management */
+	storage->priv->arbiter = iris_arbiter_coordinate (
+		storage->priv->ex_receiver,
+		storage->priv->cn_receiver,
+		NULL);
 }
 
 /**
@@ -613,6 +665,68 @@ catalina_storage_set_value (CatalinaStorage  *storage,
 	return FALSE;
 }
 
+/**
+ * catalina_storage_get_transform:
+ * @storage: A #CatalinaStorage
+ *
+ * Return value: 
+ */
+CatalinaTransform*
+catalina_storage_get_transform (CatalinaStorage *storage)
+{
+	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), NULL);
+	return CATALINA_STORAGE (storage)->priv->transform;
+}
+
+/**
+ * catalina_storage_set_transform:
+ * @storage: A #CatalinaStorage
+ * @transform: A #CatalinaTransform
+ */
+void
+catalina_storage_set_transform (CatalinaStorage   *storage,
+                                CatalinaTransform *transform)
+{
+	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+	if (CATALINA_STORAGE (storage)->priv->transform)
+		g_object_unref (CATALINA_STORAGE (storage)->priv->transform);
+	CATALINA_STORAGE (storage)->priv->transform = g_object_ref (transform);
+	g_object_notify (G_OBJECT (storage), "transform");
+}
+
+/**
+ * catalina_storage_get_formatter:
+ * @storage: A #CatalinaStorage
+ *
+ * Return value: 
+ */
+CatalinaFormatter*
+catalina_storage_get_formatter (CatalinaStorage *storage)
+{
+	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), NULL);
+	return CATALINA_STORAGE (storage)->priv->formatter;
+}
+
+/**
+ * catalina_storage_set_formatter:
+ * @storage: A #CatalinaStorage
+ * @formatter: A #GObject
+ */
+void
+catalina_storage_set_formatter (CatalinaStorage   *storage,
+                                CatalinaFormatter *formatter)
+{
+	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+	if (CATALINA_STORAGE (storage)->priv->formatter)
+		g_object_unref (CATALINA_STORAGE (storage)->priv->formatter);
+	CATALINA_STORAGE (storage)->priv->formatter = g_object_ref (formatter);
+	g_object_notify (G_OBJECT (storage), "formatter");
+}
+
+/***************************************************************************
+ *               Asynchronous Message Handlers for Iris                    *
+ ***************************************************************************/
+
 static void
 handle_open (CatalinaStorage *storage,
              IrisMessage     *message)
@@ -653,15 +767,13 @@ handle_set (CatalinaStorage *storage,
 }
 
 static void
-catalina_storage_handle_message (IrisMessage     *message,
-                                 CatalinaStorage *storage)
+catalina_storage_cn_handle_message (IrisMessage     *message,
+                                    CatalinaStorage *storage)
 {
 	switch (message->what) {
-	case MESSAGE_OPEN:
-		handle_open (storage, message);
+	case MESSAGE_GET_VALUE:
 		break;
-	case MESSAGE_CLOSE:
-		handle_close (storage, message);
+	case MESSAGE_SET_VALUE:
 		break;
 	case MESSAGE_GET:
 		handle_get (storage, message);
@@ -671,6 +783,22 @@ catalina_storage_handle_message (IrisMessage     *message,
 		break;
 	default:
 		g_warning ("Invalid message sent to storage: %d", message->what);
+	}
+}
+
+static void
+catalina_storage_ex_handle_message (IrisMessage     *message,
+                                    CatalinaStorage *storage)
+{
+	switch (message->what) {
+	case MESSAGE_OPEN:
+		handle_open (storage, message);
+		break;
+	case MESSAGE_CLOSE:
+		handle_close (storage, message);
+		break;
+	default:
+		g_warning ("Invalid exclusive message: %d", message->what);
 	}
 }
 
@@ -688,8 +816,7 @@ storage_task_new (CatalinaStorage *storage,
 	task->storage = storage;
 
 	if (!is_async) {
-		/* FIXME: We should use IrisFreeList here to re-use existing
-		 *   mutex and condition instances. */
+		/* FIXME: Use IrisFreeList to re-use mutex and cond */
 		task->mutex = g_mutex_new ();
 		task->cond = g_cond_new ();
 		g_mutex_lock (task->mutex);
@@ -703,6 +830,7 @@ storage_task_free (StorageTask *task,
                    gboolean     free_key,
                    gboolean     free_data)
 {
+	/* FIXME: Use IrisFreeList to re-use mutex and cond */
 	if (task->mutex) {
 		g_mutex_unlock (task->mutex);
 		g_mutex_free (task->mutex);

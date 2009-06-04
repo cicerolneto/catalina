@@ -26,18 +26,27 @@
 #include <iris/iris.h>
 
 #include "catalina-storage.h"
+#include "catalina-formatter.h"
+#include "catalina-transform.h"
+
+G_BEGIN_DECLS
 
 typedef struct _StorageTask StorageTask;
 
 struct _CatalinaStoragePrivate
 {
-	DB_ENV       *db_env;
-	DB           *db;
-	gboolean      use_idle;
+	DB_ENV            *db_env;
+	DB                *db;
+	gboolean           use_idle;
 
-	IrisPort     *port;
-	IrisReceiver *receiver;
-	IrisArbiter  *arbiter;
+	CatalinaFormatter *formatter;
+	CatalinaTransform *transform;
+
+	IrisPort          *ex_port,
+	                  *cn_port;
+	IrisReceiver      *ex_receiver,
+	                  *cn_receiver;
+	IrisArbiter       *arbiter;
 };
 
 struct _StorageTask
@@ -79,14 +88,20 @@ enum
 {
 	PROP_0,
 	PROP_USE_IDLE,
+	PROP_FORMATTER,
+	PROP_TRANSFORM,
 };
 
-static void         catalina_storage_handle_message (IrisMessage     *message, CatalinaStorage  *storage);
-static StorageTask* storage_task_new                (CatalinaStorage *storage, gboolean          is_async);
-static void         storage_task_free               (StorageTask     *task,    gboolean          free_key, gboolean  free_data);
-static gboolean     storage_task_wait               (StorageTask     *task,    GError          **error);
-static void         storage_task_complete           (StorageTask     *task,    gboolean          result,   GError   *error);
-static void         storage_task_succeed            (StorageTask     *task);
-static void         storage_task_fail               (StorageTask     *task,    GError            *error);
+static void         catalina_storage_ex_handle_message (IrisMessage     *message, CatalinaStorage  *storage);
+static void         catalina_storage_cn_handle_message (IrisMessage     *message, CatalinaStorage  *storage);
+
+static StorageTask* storage_task_new      (CatalinaStorage *storage, gboolean          is_async);
+static void         storage_task_free     (StorageTask     *task,    gboolean          free_key, gboolean  free_data);
+static gboolean     storage_task_wait     (StorageTask     *task,    GError          **error);
+static void         storage_task_complete (StorageTask     *task,    gboolean          result,   GError   *error);
+static void         storage_task_succeed  (StorageTask     *task);
+static void         storage_task_fail     (StorageTask     *task,    GError            *error);
+
+G_END_DECLS
 
 #endif /* __CATALINA_STORAGE_PRIVATE_H__ */
