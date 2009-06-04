@@ -34,6 +34,23 @@ G_BEGIN_DECLS
 #define CATALINA_IS_BINARY_FORMATTER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),     CATALINA_TYPE_BINARY_FORMATTER))                              
 #define CATALINA_BINARY_FORMATTER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),     CATALINA_TYPE_BINARY_FORMATTER, CatalinaBinaryFormatterClass))
 
+/**
+ * CATALINA_BINARY_FORMATTER_ERROR:
+ *
+ * #CatalinaBinaryFormatter #GError domain.
+ */
+#define CATALINA_BINARY_FORMATTER_ERROR (catalina_binary_formatter_error_quark ())
+
+/**
+ * CatalinaBinaryFormatterError:
+ * @CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE: The formatter could not determine how to format the rquested GType.
+ *
+ * #CatalinaBinaryFormatter error enumeration.
+ */
+typedef enum {
+	CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
+} CatalinaBinaryFormatterError;
+
 typedef struct _CatalinaBinaryFormatter        CatalinaBinaryFormatter;
 typedef struct _CatalinaBinaryFormatterClass   CatalinaBinaryFormatterClass;
 typedef struct _CatalinaBinaryFormatterPrivate CatalinaBinaryFormatterPrivate;
@@ -51,8 +68,9 @@ struct _CatalinaBinaryFormatterClass
 	GObjectClass parent_class;
 };
 
-GType              catalina_binary_formatter_get_type (void);
-CatalinaFormatter* catalina_binary_formatter_new      (void);
+GType              catalina_binary_formatter_get_type    (void);
+CatalinaFormatter* catalina_binary_formatter_new         (void);
+GQuark             catalina_binary_formatter_error_quark (void);
 
 G_END_DECLS
 
