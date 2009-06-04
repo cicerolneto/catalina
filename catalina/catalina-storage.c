@@ -47,6 +47,12 @@ catalina_storage_get_property (GObject    *object,
 	case PROP_USE_IDLE:
 		g_value_set_boolean (value, catalina_storage_get_use_idle ((gpointer)object));
 		break;
+	case PROP_FORMATTER:
+		g_value_set_object (value, catalina_storage_get_formatter ((gpointer)object));
+		break;
+	case PROP_TRANSFORM:
+		g_value_set_object (value, catalina_storage_get_transform ((gpointer)object));
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
 	}
@@ -61,6 +67,12 @@ catalina_storage_set_property (GObject      *object,
 	switch (property_id) {
 	case PROP_USE_IDLE:
 		catalina_storage_set_use_idle ((gpointer)object, g_value_get_boolean (value));
+		break;
+	case PROP_FORMATTER:
+		catalina_storage_set_formatter ((gpointer)object, g_value_get_object (value));
+		break;
+	case PROP_TRANSFORM:
+		catalina_storage_set_transform ((gpointer)object, g_value_get_object (value));
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
