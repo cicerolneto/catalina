@@ -55,6 +55,12 @@ enum
 	MESSAGE_SET,
 };
 
+enum
+{
+	PROP_0,
+	PROP_USE_IDLE,
+};
+
 static void
 catalina_storage_get_property (GObject    *object,
                                guint       property_id,
@@ -62,6 +68,9 @@ catalina_storage_get_property (GObject    *object,
                                GParamSpec *pspec)
 {
 	switch (property_id) {
+	case PROP_USE_IDLE:
+		g_value_set_boolean (value, catalina_storage_get_use_idle ((gpointer)object));
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
 	}
@@ -74,6 +83,9 @@ catalina_storage_set_property (GObject      *object,
                                GParamSpec   *pspec)
 {
 	switch (property_id) {
+	case PROP_USE_IDLE:
+		catalina_storage_set_use_idle ((gpointer)object, g_value_get_boolean (value));
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
 	}
@@ -102,6 +114,22 @@ catalina_storage_class_init (CatalinaStorageClass *klass)
 	object_class->get_property = catalina_storage_get_property;
 	object_class->finalize     = catalina_storage_finalize;
 	object_class->dispose      = catalina_storage_dispose;
+
+	/**
+	 * CatalinaStorage:use-idle:
+	 *
+	 * The "use-idle" property determines if the callback for asynchronous requests
+	 * should happen inside of an idle-timeout in the main-loop.
+	 */
+	g_object_class_install_property (object_class,
+	                                 PROP_USE_IDLE,
+	                                 g_param_spec_boolean ("use-idle",
+	                                                       "UseIdle",
+	                                                       "If callbacks should occur in "
+	                                                       "an idle-timeout of the main-"
+	                                                       "loop.",
+	                                                       FALSE,
+	                                                       G_PARAM_READWRITE));
 }
 
 static void
@@ -129,6 +157,38 @@ CatalinaStorage*
 catalina_storage_new (void)
 {
 	return g_object_new (CATALINA_TYPE_STORAGE, NULL);
+}
+
+/**
+ * catalina_storage_get_use_idle:
+ * @storage: A #CatalinaStorage
+ *
+ * Whether or not the asynchronous callbacks should occur from within an idle-timeout within
+ * the applications main-loop.
+ *
+ * Return value: %TRUE if the callbacks will occur in the main-loop
+ */
+gboolean
+catalina_storage_get_use_idle (CatalinaStorage *storage)
+{
+	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	return storage->priv->use_idle;
+}
+
+/**
+ * catalina_storage_set_use_idle:
+ * @storage: A #CatalinaStorage
+ * @use_idle: a #gboolean
+ *
+ * Sets whether or not callbacks should occur from within an idle timeout in the main-loop.
+ */
+void
+catalina_storage_set_use_idle (CatalinaStorage *storage,
+                               gboolean         use_idle)
+{
+	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+	storage->priv->use_idle = use_idle;
+	g_object_notify (G_OBJECT (storage), "use-idle");
 }
 
 /**

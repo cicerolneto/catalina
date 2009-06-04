@@ -52,6 +52,9 @@ struct _CatalinaStorageClass
 
 GType            catalina_storage_get_type     (void);
 CatalinaStorage* catalina_storage_new          (void);
+gboolean         catalina_storage_get_use_idle (CatalinaStorage      *storage);
+void             catalina_storage_set_use_idle (CatalinaStorage      *storage,
+                                                gboolean              use_idle);
 void             catalina_storage_open_async   (CatalinaStorage      *storage,
                                                 const gchar          *env_dir,
                                                 const gchar          *name,
