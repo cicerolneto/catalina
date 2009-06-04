@@ -115,8 +115,8 @@ catalina_binary_formatter_new (void)
 	return g_object_new (CATALINA_TYPE_BINARY_FORMATTER, NULL);
 }
 
-#define BINARY_STRING (1 << 0)
-#define BINARY_INT    (1 << 1)
+#define BINARY_STRING (0x01)
+#define BINARY_INT    (0x02)
 
 static gboolean
 catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
