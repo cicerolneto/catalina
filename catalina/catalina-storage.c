@@ -269,9 +269,12 @@ catalina_storage_open_async (CatalinaStorage     *storage,
  * catalina_storage_open_finish:
  * @storage: A #CatalinaStorage
  * @result: A #GAsyncResult
- * @error: A #GError
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Completes an asynchronous operation to open the #CatalinaStorage.  If there was an error,
+ * %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_open_finish (CatalinaStorage  *storage,
@@ -300,6 +303,7 @@ catalina_storage_open_finish (CatalinaStorage  *storage,
 		goto cleanup;
 	}
 
+	priv->flags |= FLAG_READY;
 	success = TRUE;
 
 cleanup:

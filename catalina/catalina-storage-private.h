@@ -38,6 +38,7 @@ struct _CatalinaStoragePrivate
 	DB_ENV            *db_env;
 	DB                *db;
 	gboolean           use_idle;
+	guint              flags;
 
 	CatalinaFormatter *formatter;
 	CatalinaTransform *transform;
@@ -90,6 +91,11 @@ enum
 	PROP_USE_IDLE,
 	PROP_FORMATTER,
 	PROP_TRANSFORM,
+};
+
+enum
+{
+	FLAG_READY = 1 << 0,
 };
 
 static void         catalina_storage_ex_handle_message (IrisMessage     *message, CatalinaStorage  *storage);
