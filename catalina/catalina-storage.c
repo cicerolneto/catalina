@@ -782,21 +782,11 @@ static void
 handle_open (CatalinaStorage *storage,
              IrisMessage     *message)
 {
-/*
-	DB_ENV *db_env;
-	DB     *db;
-	gchar  *errmsg,
-	       *env_dir,
-	       *name;
-	gint    ret,
-	        flags = DB_CREATE     |
-	                DB_INIT_LOG   |
-	                DB_INIT_LOCK  |
-	                DB_INIT_MPOOL |
-	                DB_INIT_TXN   |
-	                DB_PRIVATE;
-*/
+	StorageTask *task;
 
+	task = g_value_get_pointer (iris_message_get_data (message));
+
+	storage_task_succeed (task);
 }
 
 static void
@@ -876,11 +866,10 @@ storage_task_new (CatalinaStorage     *storage,
 		g_mutex_lock (task->mutex);
 	}
 	else {
-		task->result.async_v = g_simple_async_result_new (
-			G_OBJECT (storage),
-			callback, user_data,
-			source_tag);
-		g_simple_async_result_set_op_res_gpointer (task->result.async_v, task, NULL);
+		task->result = g_simple_async_result_new (G_OBJECT (storage),
+		                                          callback, user_data,
+		                                          source_tag);
+		g_simple_async_result_set_op_res_gpointer (task->result, task, NULL);
 	}
 
 	return task;
@@ -912,8 +901,8 @@ storage_task_free (StorageTask *task,
 	if (free_data)
 		g_free (task->data);
 
-	if (task->result.async_v)
-		g_object_unref (task->result.async_v);
+	if (task->result)
+		g_object_unref (task->result);
 
 	g_slice_free (StorageTask, task);
 }
@@ -923,11 +912,9 @@ storage_task_wait (StorageTask  *task,
                    GError      **error)
 {
 	g_cond_wait (task->cond, task->mutex);
-
-	if (!task->result.bool_v && task->error && error && *error == NULL)
+	if (!task->success && task->error && error && *error == NULL)
 		*error = g_error_copy (task->error);
-
-	return task->result.bool_v;
+	return task->success;
 }
 
 static void
@@ -937,19 +924,18 @@ storage_task_complete (StorageTask *task,
 {
 	if (error)
 		task->error = error;
+	task->success = result;
 
 	if (task->mutex) {
-		task->result.bool_v = result;
 		g_mutex_lock (task->mutex);
 		g_cond_signal (task->cond);
 		g_mutex_unlock (task->mutex);
 	}
 	else {
-		g_simple_async_result_set_op_res_gboolean (task->result.async_v, result);
 		if (task->storage->priv->use_idle)
-			g_simple_async_result_complete_in_idle (task->result.async_v);
+			g_simple_async_result_complete_in_idle (task->result);
 		else
-			g_simple_async_result_complete (task->result.async_v);
+			g_simple_async_result_complete (task->result);
 	}
 }
 

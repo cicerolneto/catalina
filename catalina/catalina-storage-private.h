@@ -54,10 +54,8 @@ struct _StorageTask
 {
 	CatalinaStorage     *storage;
 
-	union {
-		GSimpleAsyncResult *async_v;
-		gboolean            bool_v;
-	} result;
+	GSimpleAsyncResult *result;
+	gboolean            success;
 
 	/* synchronization for synchronous tasks */
 	GMutex              *mutex;
