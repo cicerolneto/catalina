@@ -232,23 +232,37 @@ catalina_storage_set_use_idle (CatalinaStorage *storage,
 /**
  * catalina_storage_open_async:
  * @storage: A #CatalinaStorage
- * @env_dir: environment directory for database
+ * @env_dir: environment directory for database or %NULL for current working directory
  * @name: name of the database
  * @callback: A #GAsyncReadyCallback
  * @user_data: data for @callback
  */
 void
 catalina_storage_open_async (CatalinaStorage     *storage,
-                             const               gchar *env_dir,
-                             const               gchar *name,
+                             const gchar         *env_dir,
+                             const gchar         *name,
                              GAsyncReadyCallback  callback,
                              gpointer             user_data)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gchar                  *real_env_dir;
+	IrisMessage            *message;
 
 	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+	g_return_if_fail (name != NULL);
 
 	priv = storage->priv;
+
+	real_env_dir = g_strdup (env_dir != NULL ? env_dir : ".");
+	task = storage_task_new (storage, TRUE, callback, user_data,
+	                         catalina_storage_open_async);
+	task->key = g_build_filename (real_env_dir, name, NULL);
+	g_free (real_env_dir);
+
+	message = iris_message_new_data (MESSAGE_OPEN, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	iris_message_unref (message);
 }
 
 /**
@@ -265,12 +279,33 @@ catalina_storage_open_finish (CatalinaStorage  *storage,
                               GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gboolean                success = FALSE;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (g_simple_async_result_is_valid (result, G_OBJECT (storage),
+	                                                      catalina_storage_open_async),
+	                      FALSE);
 
 	priv = storage->priv;
 
-	return FALSE;
+	if (!(task = g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result)))) {
+		g_critical ("GSimpleAsyncResult does not have a StorageTask");
+		return FALSE;
+	}
+
+	if (task->error) {
+		if (error && *error == NULL)
+			*error = g_error_copy (task->error);
+		goto cleanup;
+	}
+
+	success = TRUE;
+
+cleanup:
+	storage_task_free (task, TRUE, FALSE);
+
+	return success;
 }
 
 /**
@@ -444,7 +479,7 @@ catalina_storage_get (CatalinaStorage  *storage,
 	g_return_val_if_fail (value != NULL, FALSE);
 
 	priv = storage->priv;
-	task = storage_task_new (storage, TRUE);
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
 
 	storage_task_free (task, FALSE, FALSE);
 
@@ -819,8 +854,11 @@ catalina_storage_ex_handle_message (IrisMessage     *message,
  ***************************************************************************/
 
 StorageTask*
-storage_task_new (CatalinaStorage *storage,
-                  gboolean         is_async)
+storage_task_new (CatalinaStorage     *storage,
+                  gboolean             is_async,
+                  GAsyncReadyCallback  callback,
+                  gpointer             user_data,
+                  gpointer             source_tag)
 {
 	StorageTask *task;
 
@@ -832,6 +870,13 @@ storage_task_new (CatalinaStorage *storage,
 		task->mutex = g_mutex_new ();
 		task->cond = g_cond_new ();
 		g_mutex_lock (task->mutex);
+	}
+	else {
+		task->result.async_v = g_simple_async_result_new (
+			G_OBJECT (storage),
+			callback, user_data,
+			source_tag);
+		g_simple_async_result_set_op_res_gpointer (task->result.async_v, task, NULL);
 	}
 
 	return task;
@@ -862,6 +907,9 @@ storage_task_free (StorageTask *task,
 
 	if (free_data)
 		g_free (task->data);
+
+	if (task->result.async_v)
+		g_object_unref (task->result.async_v);
 
 	g_slice_free (StorageTask, task);
 }

@@ -95,10 +95,10 @@ enum
 static void         catalina_storage_ex_handle_message (IrisMessage     *message, CatalinaStorage  *storage);
 static void         catalina_storage_cn_handle_message (IrisMessage     *message, CatalinaStorage  *storage);
 
-static StorageTask* storage_task_new      (CatalinaStorage *storage, gboolean          is_async);
-static void         storage_task_free     (StorageTask     *task,    gboolean          free_key, gboolean  free_data);
+static StorageTask* storage_task_new      (CatalinaStorage *storage, gboolean          is_async, GAsyncReadyCallback  callback, gpointer user_data, gpointer source_tag);
+static void         storage_task_free     (StorageTask     *task,    gboolean          free_key, gboolean             free_data);
 static gboolean     storage_task_wait     (StorageTask     *task,    GError          **error);
-static void         storage_task_complete (StorageTask     *task,    gboolean          result,   GError   *error);
+static void         storage_task_complete (StorageTask     *task,    gboolean          result,   GError              *error);
 static void         storage_task_succeed  (StorageTask     *task);
 static void         storage_task_fail     (StorageTask     *task,    GError            *error);
 
