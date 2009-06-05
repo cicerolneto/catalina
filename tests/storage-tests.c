@@ -66,7 +66,28 @@ static void
 test6 (void)
 {
 	CatalinaStorage *storage = catalina_storage_new ();
-	g_assert (catalina_storage_open (storage, ".","storage-tests.db", NULL));
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+}
+
+static void
+test7_cb (GObject      *object,
+          GAsyncResult *result,
+          gpointer      user_data)
+{
+	AsyncTest *test = user_data;
+	test->success = catalina_storage_close_finish (CATALINA_STORAGE (object), result, &test->error);
+	async_test_complete (test);
+}
+
+static void
+test7 (void)
+{
+	AsyncTest *test = async_test_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "use-idle", FALSE, NULL);
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_close_async (storage, test7_cb, test);
+	async_test_wait (test);
 }
 
 gint
@@ -83,6 +104,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/:formatter(1)", test5);
 	g_test_add_func ("/CatalinaStorage/open_async(1)", test4);
 	g_test_add_func ("/CatalinaStorage/open(1)", test6);
+	g_test_add_func ("/CatalinaStorage/close_async(1)", test7);
 
 	return g_test_run ();
 }

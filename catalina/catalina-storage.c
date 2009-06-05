@@ -361,10 +361,17 @@ catalina_storage_close_async (CatalinaStorage     *storage,
                               gpointer             user_data)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
 
 	g_return_if_fail (CATALINA_IS_STORAGE (storage));
 
 	priv = storage->priv;
+	task = storage_task_new (storage, TRUE, callback, user_data,
+	                         catalina_storage_close_async);
+	message = iris_message_new_data (MESSAGE_CLOSE, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	iris_message_unref (message);
 }
 
 /**
@@ -381,12 +388,34 @@ catalina_storage_close_finish (CatalinaStorage  *storage,
                                GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gboolean                success = FALSE;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (g_simple_async_result_is_valid (result, G_OBJECT (storage),
+	                                                      catalina_storage_close_async),
+	                      FALSE);
 
 	priv = storage->priv;
 
-	return FALSE;
+	if (!(task = g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result)))) {
+		g_critical ("GSimpleAsyncResult does not have a StorageTask");
+		return FALSE;
+	}
+
+	if (task->error) {
+		if (error && *error == NULL)
+			*error = g_error_copy (task->error);
+		goto cleanup;
+	}
+
+	priv->flags = 0;
+	success = TRUE;
+
+cleanup:
+	storage_task_free (task, FALSE, FALSE);
+
+	return success;
 }
 
 /**
@@ -891,6 +920,45 @@ static void
 handle_close (CatalinaStorage *storage,
               IrisMessage     *message)
 {
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gint                    ret;
+
+	g_return_if_fail (message->what == MESSAGE_CLOSE);
+	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+
+	priv = storage->priv;
+	task = g_value_get_pointer (iris_message_get_data (message));
+
+	if (!priv->db) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Storage is not currently open");
+		goto error;
+	}
+
+	if ((ret = priv->db->close (priv->db, 0)) != 0) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "%s", db_strerror (ret));
+		goto error;
+	}
+
+	if ((priv->db_env->close (priv->db_env, 0)) != 0) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "%s", db_strerror (ret));
+		goto error;
+	}
+
+
+	priv->db = NULL;
+	priv->db_env = NULL;
+	storage_task_succeed (task);
+	return;
+
+error:
+	storage_task_fail (task);
 }
 
 static void
