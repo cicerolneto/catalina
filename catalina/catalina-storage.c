@@ -587,7 +587,46 @@ catalina_storage_get (CatalinaStorage  *storage,
                       gsize            *value_length,
                       GError          **error)
 {
-	return FALSE;
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+	gchar                  *dup_key;
+	gsize                   dup_len;
+	gboolean                success;
+
+	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (key != NULL, FALSE);
+	g_return_val_if_fail (key_length == -1 || key_length > 0, FALSE);
+
+	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+
+	if (key_length == -1) {
+		dup_key = g_strdup (key);
+		dup_len = strlen (dup_key) + 1;
+	}
+	else {
+		dup_key = g_malloc (key_length);
+		memcpy (dup_key, key, key_length);
+		dup_len = key_length;
+	}
+
+	task->key = dup_key;
+	task->key_length = dup_len;
+
+	message = iris_message_new_data (MESSAGE_GET, G_TYPE_POINTER, task);
+	iris_port_post (priv->cn_port, message);
+	iris_message_unref (message);
+
+	if (!(success = storage_task_wait (task, error))) {
+		*value = task->data;
+		if (value_length)
+			*value_length = task->data_length;
+	}
+
+	storage_task_free (task, TRUE, FALSE);
+
+	return success;
 }
 
 /**
@@ -719,12 +758,30 @@ catalina_storage_set (CatalinaStorage  *storage,
                       GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (key != NULL, FALSE);
+	g_return_val_if_fail (key_length == -1 || key_length > 0, FALSE);
 
 	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
 
-	return FALSE;
+	task->key = (gchar*)key;
+	task->key_length = (key_length == -1) ? strlen (key) + 1 : key_length;
+	task->data = (gchar*)value;
+	task->data_length = (value_length == -1) ? strlen (value) + 1 : value_length;
+
+	message = iris_message_new_data (MESSAGE_GET, G_TYPE_POINTER, task);
+	iris_port_post (priv->cn_port, message);
+	iris_message_unref (message);
+
+	success = storage_task_wait (task, error);
+	storage_task_free (task, FALSE, FALSE);
+
+	return success;
 }
 
 /**

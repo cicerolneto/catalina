@@ -144,6 +144,26 @@ test10 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test11 (void)
+{
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	g_assert (catalina_storage_set (storage, TEST_KEY, -1, TEST_DATA, -1, NULL));
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test12 (void)
+{
+	gchar *buffer = NULL;
+	gsize  length = 0;
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	g_assert (catalina_storage_get (storage, TEST_KEY, -1, &buffer, &length, NULL));
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -161,7 +181,9 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/close_async(1)", test7);
 	g_test_add_func ("/CatalinaStorage/close(1)", test8);
 	g_test_add_func ("/CatalinaStorage/set_async(1)", test10);
+	g_test_add_func ("/CatalinaStorage/set(1)", test11);
 	g_test_add_func ("/CatalinaStorage/get_async(1)", test9);
+	g_test_add_func ("/CatalinaStorage/get(1)", test12);
 
 	return g_test_run ();
 }
