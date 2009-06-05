@@ -1052,6 +1052,7 @@ handle_get (CatalinaStorage *storage,
 		             CATALINA_STORAGE_ERROR_STATE,
 		             "Storage is not currently open");
 		storage_task_fail (task);
+		return;
 	}
 
 	{
