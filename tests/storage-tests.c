@@ -2,7 +2,8 @@
 #include <iris/iris.h>
 #include "async-test.h"
 
-#define TEST_KEY "invalid"
+#define TEST_KEY  "test-key"
+#define TEST_DATA "test-data"
 
 static void
 test1 (void)
@@ -121,6 +122,28 @@ test9 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test10_cb (GObject      *object,
+           GAsyncResult *result,
+           gpointer      user_data)
+{
+	AsyncTest *test = user_data;
+	test->success = catalina_storage_set_finish ((void*)object, result, &test->error);
+	g_assert (test->success);
+	async_test_complete (user_data);
+}
+
+static void
+test10 (void)
+{
+	AsyncTest *test = async_test_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_set_async (storage, TEST_KEY, -1, TEST_DATA, -1, test10_cb, test);
+	async_test_wait (test);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -137,6 +160,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/open(1)", test6);
 	g_test_add_func ("/CatalinaStorage/close_async(1)", test7);
 	g_test_add_func ("/CatalinaStorage/close(1)", test8);
+	g_test_add_func ("/CatalinaStorage/set_async(1)", test10);
 	g_test_add_func ("/CatalinaStorage/get_async(1)", test9);
 
 	return g_test_run ();
