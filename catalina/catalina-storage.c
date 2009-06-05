@@ -465,11 +465,11 @@ catalina_storage_close (CatalinaStorage  *storage,
  * should in turn call catalina_storage_get_finish() to complete the request.
  */
 void
-catalina_storage_get_async (CatalinaStorage      *storage,
-                            const                gchar *key,
-                            gssize                key_length,
-                            GAsyncReadyCallback   callback,
-                            gpointer              user_data)
+catalina_storage_get_async (CatalinaStorage     *storage,
+                            const gchar         *key,
+                            gssize               key_length,
+                            GAsyncReadyCallback  callback,
+                            gpointer             user_data)
 {
 	CatalinaStoragePrivate *priv;
 
