@@ -59,11 +59,10 @@ catalina_transform_get_type (void)
 	return transform_type;
 }
 
-
 /**
  * catalina_transform_read:
  * @transform: A #CatalinaTransform
- * @gchar input:
+ * @input:
  * @input_length:
  * @output:
  * @output_length:
@@ -88,7 +87,7 @@ catalina_transform_read (CatalinaTransform  *transform,
 /**
  * catalina_transform_write:
  * @transform: A #CatalinaTransform
- * @gchar input:
+ * @input:
  * @input_length:
  * @output:
  * @output_length:
@@ -100,7 +99,7 @@ catalina_transform_read (CatalinaTransform  *transform,
  */
 gboolean
 catalina_transform_write (CatalinaTransform  *transform,
-                          const              gchar *input,
+                          const gchar        *input,
                           gsize               input_length,
                           gchar             **output,
                           gsize              *output_length,
@@ -109,4 +108,3 @@ catalina_transform_write (CatalinaTransform  *transform,
 	return CATALINA_TRANSFORM_GET_INTERFACE (transform)->write
 		(transform, input, input_length, output, output_length, error);
 }
-

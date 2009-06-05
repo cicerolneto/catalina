@@ -36,6 +36,25 @@ G_BEGIN_DECLS
 #define CATALINA_IS_STORAGE_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  CATALINA_TYPE_STORAGE))                      
 #define CATALINA_STORAGE_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  CATALINA_TYPE_STORAGE, CatalinaStorageClass))
 
+/**
+ * CATALINA_STORAGE_ERROR:
+ *
+ * #CatalinaStorage #GError domain.
+ */
+#define CATALINA_STORAGE_ERROR (catalina_storage_error_quark ())
+
+/**
+ * CatalinaStorageError:
+ * @CATALINA_STORAGE_ERROR_STATE: Operation is invalid for the current state
+ * @CATALINA_STORAGE_ERROR_DB: An error occurred with BDB.
+ *
+ * #CatalinaStorage error enumeration.
+ */
+typedef enum {
+	CATALINA_STORAGE_ERROR_STATE,
+	CATALINA_STORAGE_ERROR_DB,
+} CatalinaStorageError;
+
 typedef struct _CatalinaStorage        CatalinaStorage;
 typedef struct _CatalinaStorageClass   CatalinaStorageClass;
 typedef struct _CatalinaStoragePrivate CatalinaStoragePrivate;
@@ -145,6 +164,8 @@ void               catalina_storage_set_formatter (CatalinaStorage   *storage,
 CatalinaTransform* catalina_storage_get_transform (CatalinaStorage   *storage);
 void               catalina_storage_set_transform (CatalinaStorage   *storage,
                                                    CatalinaTransform *transform);
+
+GQuark             catalina_storage_error_quark   (void);
 
 G_END_DECLS
 

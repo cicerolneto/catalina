@@ -487,9 +487,10 @@ catalina_storage_get (CatalinaStorage  *storage,
 
 	storage_task_free (task, FALSE, FALSE);
 
+	/* blah for Werror. */
 	storage_task_wait (task, NULL);
 	storage_task_succeed (task);
-	storage_task_fail (task, NULL);
+	storage_task_fail (task);
 
 	return FALSE;
 }
@@ -774,6 +775,12 @@ catalina_storage_set_formatter (CatalinaStorage   *storage,
 	g_object_notify (G_OBJECT (storage), "formatter");
 }
 
+GQuark
+catalina_storage_error_quark (void)
+{
+	return g_quark_from_static_string ("catalina-storage-error-quark");
+}
+
 /***************************************************************************
  *               Asynchronous Message Handlers for Iris                    *
  ***************************************************************************/
@@ -782,10 +789,88 @@ static void
 handle_open (CatalinaStorage *storage,
              IrisMessage     *message)
 {
-	StorageTask *task;
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
 
+	g_return_if_fail (storage != NULL);
+	g_return_if_fail (message != NULL && message->what == MESSAGE_OPEN);
+
+	/* NOTE: We use the standard StorageTask structure to do this operation
+	 *   as well.  The env/name is stored in the key as a filename.
+	 *   Splitting it as a file will yield the result back.
+	 */
+
+	priv = storage->priv;
 	task = g_value_get_pointer (iris_message_get_data (message));
 
+	if (priv->db) {
+		/* already open, no need */
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Storage already opened");
+		storage_task_fail (task);
+		return;
+	}
+
+	DB_ENV               *db_env  = NULL;
+	DB                   *db      = NULL;
+	gchar                *errmsg;
+	gchar                *env_dir = NULL,
+	                     *name    = NULL;
+	gint                  ret,
+	                      env_flags = DB_CREATE
+	                                | DB_INIT_LOG
+	                                | DB_INIT_LOCK
+	                                | DB_INIT_MPOOL
+	                                | DB_INIT_TXN
+	                                | DB_PRIVATE;
+
+	env_dir = g_path_get_dirname (task->key);
+	name = g_path_get_basename (task->key);
+
+	if (!g_file_test (env_dir, G_FILE_TEST_IS_DIR))
+		g_mkdir_with_parents (env_dir, 0755);
+
+	if ((ret = db_env_create (&db_env, 0)) != 0) {
+		errmsg = g_strdup_printf ("db_env_create: %s", db_strerror (ret));
+		goto error;
+	}
+
+	db_env->set_errpfx (db_env, "BDB");
+	db_env->set_errfile (db_env, stderr);
+
+	if ((ret = db_env->open (db_env, env_dir, env_flags, 0)) != 0) {
+		errmsg = g_strdup_printf ("db_env_open: %s", db_strerror (ret));
+		goto error;
+	}
+
+	if ((ret = db_create (&db, db_env, 0)) != 0) {
+		errmsg = g_strdup_printf ("db_create: %s", db_strerror (ret));
+		goto error;
+	}
+
+	/* db->set_flags (db, DB_RENUMBER); */
+
+	if ((ret = db->open (db, NULL, name, NULL, DB_BTREE/*DB_RECNO*/, DB_CREATE, 0)) != 0) {
+		errmsg = g_strdup_printf ("db_open: %s", db_strerror (ret));
+		goto error;
+	}
+
+	priv->db = db;
+	priv->db_env = db_env;
+	task->success = TRUE;
+
+	goto finish;
+
+error:
+	g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+	             CATALINA_STORAGE_ERROR_DB,
+	             "%s", db_strerror (ret));
+	g_free (errmsg);
+
+finish:
+	g_free (env_dir);
+	g_free (name);
 	storage_task_succeed (task);
 }
 
@@ -919,12 +1004,9 @@ storage_task_wait (StorageTask  *task,
 
 static void
 storage_task_complete (StorageTask *task,
-                       gboolean     result,
-                       GError      *error)
+                       gboolean     success)
 {
-	if (error)
-		task->error = error;
-	task->success = result;
+	task->success = success;
 
 	if (task->mutex) {
 		g_mutex_lock (task->mutex);
@@ -942,12 +1024,11 @@ storage_task_complete (StorageTask *task,
 static void
 storage_task_succeed (StorageTask *task)
 {
-	storage_task_complete (task, TRUE, NULL);
+	storage_task_complete (task, TRUE);
 }
 
 static void
-storage_task_fail (StorageTask *task,
-                   GError      *error)
+storage_task_fail (StorageTask *task)
 {
-	storage_task_complete (task, FALSE, error);
+	storage_task_complete (task, FALSE);
 }
