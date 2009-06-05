@@ -5,6 +5,9 @@
 #define TEST_KEY  "test-key"
 #define TEST_DATA "test-data"
 
+#define TEST_KEY_ZLIB  "test-key-zlib"
+#define TEST_DATA_ZLIB "test-data-zlib"
+
 static void
 test1 (void)
 {
@@ -164,6 +167,32 @@ test12 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test13 (void)
+{
+	gchar  *buffer = NULL;
+	gsize   length = 0;
+	GError *error = NULL;
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	if (!catalina_storage_get (storage, TEST_KEY_ZLIB, -1, &buffer, &length, &error))
+		g_error ("%s", error->message);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test14 (void)
+{
+	GError *error = NULL;
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	if (!catalina_storage_set (storage, TEST_KEY_ZLIB, -1, TEST_DATA_ZLIB, -1, &error))
+		g_error ("%s", error->message);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -182,8 +211,10 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/close(1)", test8);
 	g_test_add_func ("/CatalinaStorage/set_async(1)", test10);
 	g_test_add_func ("/CatalinaStorage/set(1)", test11);
+	g_test_add_func ("/CatalinaStorage/set(2)", test14);
 	g_test_add_func ("/CatalinaStorage/get_async(1)", test9);
 	g_test_add_func ("/CatalinaStorage/get(1)", test12);
+	g_test_add_func ("/CatalinaStorage/get(2)", test13);
 
 	return g_test_run ();
 }

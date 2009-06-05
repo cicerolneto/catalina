@@ -1136,7 +1136,9 @@ handle_get (CatalinaStorage *storage,
 {
 	CatalinaStoragePrivate *priv;
 	StorageTask            *task;
-	gboolean                success = FALSE;
+	gboolean                success       = FALSE;
+	gchar                  *buffer        = NULL;
+	gsize                   buffer_length = 0;
 
 	g_return_if_fail (message->what == MESSAGE_GET);
 	g_return_if_fail (storage != NULL);
@@ -1174,10 +1176,26 @@ handle_get (CatalinaStorage *storage,
 					     "The requested key could not be found");
 		}
 		else {
-			success = TRUE;
-			task->data_length = db_value.size;
-			task->data = g_malloc (task->data_length);
-			memcpy (task->data, db_value.data, task->data_length);
+			if (priv->transform) {
+				if (catalina_transform_read (priv->transform,
+				                             db_value.data, db_value.size,
+				                             &buffer, &buffer_length,
+				                             &task->error))
+				{
+					if (buffer_length == 0)
+						goto copy;
+					success = TRUE;
+					task->data = buffer;
+					task->data_length = buffer_length;
+				}
+			}
+			else {
+			copy:
+				success = TRUE;
+				task->data_length = db_value.size;
+				task->data = g_malloc (task->data_length);
+				memcpy (task->data, db_value.data, task->data_length);
+			}
 		}
 
 		FREE_DBT (db_key);
