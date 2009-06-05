@@ -1214,7 +1214,9 @@ handle_set (CatalinaStorage *storage,
 {
 	CatalinaStoragePrivate *priv;
 	StorageTask            *task;
-	gboolean                success = FALSE;
+	gboolean                success       = FALSE;
+	gchar                  *buffer        = NULL;
+	gsize                   buffer_length = 0;
 
 	g_return_if_fail (message->what == MESSAGE_SET);
 	g_return_if_fail (storage != NULL);
@@ -1228,6 +1230,17 @@ handle_set (CatalinaStorage *storage,
 		             "Storage is not currently open");
 		storage_task_fail (task);
 		return;
+	}
+
+	if (priv->transform) {
+		if (!catalina_transform_write (priv->transform,
+		                               task->key, task->key_length,
+		                               &buffer, &buffer_length,
+		                               &task->error))
+		{
+			storage_task_fail (task);
+			return;
+		}
 	}
 
 	{
@@ -1245,8 +1258,8 @@ handle_set (CatalinaStorage *storage,
 		db_key.size = task->key_length;
 		db_key.ulen = db_key.size;
 		db_key.flags = DB_DBT_USERMEM;
-		db_value.data = task->data;
-		db_value.size = task->data_length;
+		db_value.data = buffer != NULL ? buffer : task->data;
+		db_value.size = buffer != NULL ? buffer_length : task->data_length;
 		db_value.ulen = db_value.size;
 		db_value.flags = DB_DBT_USERMEM;
 
@@ -1261,6 +1274,8 @@ handle_set (CatalinaStorage *storage,
 			success = TRUE;
 		}
 
+		if (buffer)
+			g_free (buffer);
 		FREE_DBT (db_key);
 		FREE_DBT (db_value);
 	}
