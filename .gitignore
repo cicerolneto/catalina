@@ -45,3 +45,4 @@ tests/storage-tests
 tests/binary-formatter-tests
 tests/zlib-transform-tests
 tests/storage-tests.db
+tests/log.*
