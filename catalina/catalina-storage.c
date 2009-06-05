@@ -331,6 +331,7 @@ catalina_storage_open (CatalinaStorage  *storage,
 	StorageTask            *task;
 	gchar                  *real_env_dir;
 	IrisMessage            *message;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
 	g_return_val_if_fail (name != NULL, FALSE);
@@ -346,7 +347,10 @@ catalina_storage_open (CatalinaStorage  *storage,
 	iris_port_post (priv->ex_port, message);
 	iris_message_unref (message);
 
-	return storage_task_wait (task, error);
+	success = storage_task_wait (task, error);
+	storage_task_free (task, TRUE, FALSE);
+
+	return success;
 }
 
 /**
@@ -430,12 +434,21 @@ catalina_storage_close (CatalinaStorage  *storage,
                         GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
 
 	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+	message = iris_message_new_data (MESSAGE_CLOSE, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	success = storage_task_wait (task, error);
+	iris_message_unref (message);
+	storage_task_free (task, FALSE, FALSE);
 
-	return FALSE;
+	return success;
 }
 
 /**
