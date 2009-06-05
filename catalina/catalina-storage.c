@@ -557,7 +557,7 @@ catalina_storage_get_finish (CatalinaStorage  *storage,
 	}
 
 cleanup:
-	storage_task_free (task, TRUE, TRUE);
+	storage_task_free (task, TRUE, FALSE);
 
 	return success;
 }
