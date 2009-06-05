@@ -30,6 +30,27 @@ test3 (void)
 	g_assert (t1 == t2);
 }
 
+static void
+test4_cb (GObject      *object,
+          GAsyncResult *result,
+          gpointer      user_data)
+{
+	AsyncTest *test = user_data;
+	test->success = catalina_storage_open_finish ((void*)object, result, &test->error);
+	g_assert (test->success);
+	async_test_complete (test);
+}
+
+static void
+test4 (void)
+{
+	AsyncTest *test = async_test_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
+	catalina_storage_set_use_idle (storage, FALSE);
+	catalina_storage_open_async (storage, ".", "storage-tests.db", test4_cb, test);
+	async_test_wait (test);
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -38,8 +59,10 @@ main (gint   argc,
 	g_test_init (&argc, &argv, NULL);
 	iris_init ();
 
-	g_test_add_func ("/storage/new1", test1);
-	g_test_add_func ("/storage/use_idle1", test2);
+	g_test_add_func ("/CatalinaStorage/new(1)", test1);
+	g_test_add_func ("/CatalinaStorage/:use-idle(1)", test2);
+	g_test_add_func ("/CatalinaStorage/:transform(1)", test3);
+	g_test_add_func ("/CatalinaStorage/open_async(1)", test4);
 
 	return g_test_run ();
 }
