@@ -46,7 +46,6 @@ test4 (void)
 {
 	AsyncTest *test = async_test_new ();
 	CatalinaStorage *storage = catalina_storage_new ();
-	catalina_storage_set_use_idle (storage, FALSE);
 	catalina_storage_open_async (storage, ".", "storage-tests.db", test4_cb, test);
 	async_test_wait (test);
 }
@@ -84,7 +83,6 @@ test7 (void)
 {
 	AsyncTest *test = async_test_new ();
 	CatalinaStorage *storage = catalina_storage_new ();
-	g_object_set (storage, "use-idle", FALSE, NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
 	catalina_storage_close_async (storage, test7_cb, test);
 	async_test_wait (test);
@@ -94,7 +92,6 @@ static void
 test8 (void)
 {
 	CatalinaStorage *storage = catalina_storage_new ();
-	g_object_set (storage, "use-idle", FALSE, NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
 	g_assert (catalina_storage_close (storage, NULL));
 }

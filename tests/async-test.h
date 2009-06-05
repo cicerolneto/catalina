@@ -52,11 +52,15 @@ async_test_new (void)
 static void
 async_test_wait (AsyncTest *test)
 {
+	/* start main loop in another thread */
+	GMainLoop *main_loop = g_main_loop_new (NULL, FALSE);
+	g_thread_create ((GThreadFunc)g_main_loop_run, main_loop, FALSE, NULL);
 	g_cond_wait (test->cond, test->mutex);
 	g_assert_cmpint (test->success,==,TRUE);
 	g_mutex_unlock (test->mutex);
 	g_mutex_free (test->mutex);
 	g_cond_free (test->cond);
+	g_main_loop_quit (main_loop);
 }
 
 static void
