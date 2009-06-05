@@ -1,5 +1,6 @@
 #include <catalina/catalina.h>
 #include <iris/iris.h>
+#include "async-test.h"
 
 static void
 test1 (void)
@@ -16,6 +17,17 @@ test2 (void)
 	g_assert_cmpint (catalina_storage_get_use_idle (storage),==,FALSE);
 	catalina_storage_set_use_idle (storage, TRUE);
 	g_assert_cmpint (catalina_storage_get_use_idle (storage),==,TRUE);
+}
+
+static void
+test3 (void)
+{
+	CatalinaStorage *storage = catalina_storage_new ();
+	CatalinaTransform *t1 = catalina_zlib_transform_new ();
+	CatalinaTransform *t2 = NULL;
+	g_object_set (storage, "transform", t1, NULL);
+	g_object_get (storage, "transform", &t2, NULL);
+	g_assert (t1 == t2);
 }
 
 gint
