@@ -13,7 +13,7 @@ main (gint   argc,
 	g_type_init ();
 	g_test_init (&argc, &argv, NULL);
 
-	g_test_add_func ("/binary-formatter/new1", test1);
+	g_test_add_func ("/CatalinaBinaryFormatter/new(1)", test1);
 
 	return g_test_run ();
 }
