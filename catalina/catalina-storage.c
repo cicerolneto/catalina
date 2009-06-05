@@ -774,7 +774,7 @@ catalina_storage_set (CatalinaStorage  *storage,
 	task->data = (gchar*)value;
 	task->data_length = (value_length == -1) ? strlen (value) + 1 : value_length;
 
-	message = iris_message_new_data (MESSAGE_GET, G_TYPE_POINTER, task);
+	message = iris_message_new_data (MESSAGE_SET, G_TYPE_POINTER, task);
 	iris_port_post (priv->cn_port, message);
 	iris_message_unref (message);
 
