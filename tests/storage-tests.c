@@ -51,6 +51,17 @@ test4 (void)
 	async_test_wait (test);
 }
 
+static void
+test5 (void)
+{
+	CatalinaStorage *storage = catalina_storage_new ();
+	CatalinaFormatter *f1 = catalina_binary_formatter_new ();
+	CatalinaFormatter *f2 = NULL;
+	g_object_set (storage, "formatter", f1, NULL);
+	g_object_get (storage, "formatter", &f2, NULL);
+	g_assert (f1 == f2);
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -62,6 +73,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/new(1)", test1);
 	g_test_add_func ("/CatalinaStorage/:use-idle(1)", test2);
 	g_test_add_func ("/CatalinaStorage/:transform(1)", test3);
+	g_test_add_func ("/CatalinaStorage/:formatter(1)", test5);
 	g_test_add_func ("/CatalinaStorage/open_async(1)", test4);
 
 	return g_test_run ();
