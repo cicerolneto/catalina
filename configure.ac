@@ -59,8 +59,13 @@ AC_SUBST(CATALINA_LIBS)
 
 AM_CONDITIONAL(ENABLE_GLIB_TEST, test "x$enable_glibtest" = "xyes")
 
-dnl = Enable strict compiler flags =========================================
+AX_PATH_BDB([4.6],[
+	LIBS="$BDB_LIBS"
+	LDFLAGS="$BDB_LDFLAGS $LDFLAGS"
+	CPPFLAGS="$CPPFLAGS $BDB_CPPFLAGS"
+])
 
+dnl = Enable strict compiler flags =========================================
 # use strict compiler flags only on development releases
 m4_define([maintainer_flags_default], m4_if(m4_eval(catalina_minor_version % 2), [1], [yes], [no]))
 AC_ARG_ENABLE([maintainer-flags],
