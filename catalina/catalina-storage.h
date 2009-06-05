@@ -47,12 +47,14 @@ G_BEGIN_DECLS
  * CatalinaStorageError:
  * @CATALINA_STORAGE_ERROR_STATE: Operation is invalid for the current state
  * @CATALINA_STORAGE_ERROR_DB: An error occurred with BDB.
+ * @CATALINA_STORAGE_ERROR_NO_SUCH_KEY: The key requested was not found
  *
  * #CatalinaStorage error enumeration.
  */
 typedef enum {
 	CATALINA_STORAGE_ERROR_STATE,
 	CATALINA_STORAGE_ERROR_DB,
+	CATALINA_STORAGE_ERROR_NO_SUCH_KEY,
 } CatalinaStorageError;
 
 typedef struct _CatalinaStorage        CatalinaStorage;

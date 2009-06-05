@@ -2,6 +2,8 @@
 #include <iris/iris.h>
 #include "async-test.h"
 
+#define TEST_KEY "invalid"
+
 static void
 test1 (void)
 {
@@ -96,6 +98,28 @@ test8 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test9_cb (GObject      *object,
+          GAsyncResult *result,
+          gpointer      user_data)
+{
+	gchar *buffer = NULL;
+	gsize  length = 0;
+	AsyncTest *test = user_data;
+	catalina_storage_get_finish ((void*)object, result, &buffer, &length, &test->error);
+	async_test_complete (test);
+}
+
+static void
+test9 (void)
+{
+	AsyncTest *test = async_test_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_get_async (storage, TEST_KEY, -1, test9_cb, test);
+	async_test_wait (test);
+	g_assert (catalina_storage_close (storage, NULL));
+}
 
 gint
 main (gint   argc,
@@ -113,6 +137,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/open(1)", test6);
 	g_test_add_func ("/CatalinaStorage/close_async(1)", test7);
 	g_test_add_func ("/CatalinaStorage/close(1)", test8);
+	g_test_add_func ("/CatalinaStorage/get_async(1)", test9);
 
 	return g_test_run ();
 }

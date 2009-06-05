@@ -27,6 +27,10 @@
 #include "catalina-storage-private.h"
 #include "catalina-transform.h"
 
+#define CLEAR_DBT(dbt)   (memset(&(dbt), 0, sizeof(dbt)))
+#define FREE_DBT(dbt)    if ((dbt.flags & (DB_DBT_MALLOC|DB_DBT_REALLOC)) && \
+			      dbt.data != NULL) { g_free(dbt.data); dbt.data = NULL; }
+
 /**
  * SECTION:catalina-storage
  * @title: CatalinaStorage
@@ -472,10 +476,36 @@ catalina_storage_get_async (CatalinaStorage     *storage,
                             gpointer             user_data)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+	gchar                  *dup_key;
+	gsize                   dup_len;
 
 	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+	g_return_if_fail (key != NULL);
+	g_return_if_fail (key_length == -1 || key_length > 0);
 
 	priv = storage->priv;
+
+	task = storage_task_new (storage, TRUE, callback, user_data,
+	                         catalina_storage_get_async);
+
+	if (key_length == -1) {
+		dup_key = g_strdup (key);
+		dup_len = strlen (dup_key) + 1;
+	}
+	else {
+		dup_key = g_malloc (key_length);
+		memcpy (dup_key, key, key_length);
+		dup_len = key_length;
+	}
+
+	task->key = dup_key;
+	task->key_length = dup_len;
+
+	message = iris_message_new_data (MESSAGE_GET, G_TYPE_POINTER, task);
+	iris_port_post (priv->cn_port, message);
+	iris_message_unref (message);
 }
 
 /**
@@ -496,12 +526,41 @@ catalina_storage_get_finish (CatalinaStorage  *storage,
                              GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (value != NULL, FALSE);
+	g_return_val_if_fail (g_simple_async_result_is_valid (result, G_OBJECT (storage),
+	                                                      catalina_storage_get_async),
+	                      FALSE);
 
 	priv = storage->priv;
 
-	return FALSE;
+	if (!(task = g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result)))) {
+		g_critical ("GSimpleAsyncResult does not have a StorageTask");
+		return FALSE;
+	}
+
+	success = task->success;
+
+	if (task->error) {
+		if (error && *error == NULL)
+			*error = g_error_copy (task->error);
+		goto cleanup;
+	}
+	else {
+		if (task->data)
+			*value = task->data;
+		if (value_length)
+			*value_length = task->data_length;
+	}
+
+cleanup:
+	storage_task_free (task, TRUE, TRUE);
+
+	return success;
+
 }
 
 /**
@@ -978,6 +1037,59 @@ static void
 handle_get (CatalinaStorage *storage,
             IrisMessage     *message)
 {
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gboolean                success = FALSE;
+
+	g_return_if_fail (message->what == MESSAGE_GET);
+	g_return_if_fail (storage != NULL);
+
+	priv = storage->priv;
+	task = g_value_get_pointer (iris_message_get_data (message));
+
+	if (!priv->db) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Storage is not currently open");
+		storage_task_fail (task);
+	}
+
+	{
+		DBT      db_key,
+		         db_value;
+		DB_TXN  *txn   = NULL;
+		gint     flags = 0,
+		         ret;
+
+		CLEAR_DBT (db_key);
+		CLEAR_DBT (db_value);
+
+		db_key.data = task->key;
+		db_key.size = task->key_length;
+		db_key.ulen = db_key.size;
+		db_key.flags = DB_DBT_USERMEM;
+		db_value.flags = DB_DBT_MALLOC;
+
+		if ((ret = priv->db->get (priv->db, txn, &db_key, &db_value, flags)) != 0) {
+			g_set_error_literal (&task->error, CATALINA_STORAGE_ERROR,
+					     CATALINA_STORAGE_ERROR_NO_SUCH_KEY,
+					     "The requested key could not be found");
+		}
+		else {
+			success = TRUE;
+			task->data_length = db_value.size;
+			task->data = g_malloc (task->data_length);
+			memcpy (task->data, db_value.data, task->data_length);
+		}
+
+		FREE_DBT (db_key);
+		FREE_DBT (db_value);
+	}
+
+	if (success)
+		storage_task_succeed (task);
+	else
+		storage_task_fail (task);
 }
 
 static void
