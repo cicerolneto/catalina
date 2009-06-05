@@ -328,12 +328,25 @@ catalina_storage_open (CatalinaStorage  *storage,
                        GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gchar                  *real_env_dir;
+	IrisMessage            *message;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (name != NULL, FALSE);
 
 	priv = storage->priv;
 
-	return FALSE;
+	real_env_dir = g_strdup (env_dir != NULL ? env_dir : ".");
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+	task->key = g_build_filename (real_env_dir, name, NULL);
+	g_free (real_env_dir);
+
+	message = iris_message_new_data (MESSAGE_OPEN, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	iris_message_unref (message);
+
+	return storage_task_wait (task, error);
 }
 
 /**
