@@ -36,7 +36,87 @@
  * @title: CatalinaStorage
  * @short_description: asynchronous data-store using Berkeley DB
  *
- * #CatalinaStorage provides an asynchronous wrapper around Berkeley DB.
+ * #CatalinaStorage is an asynchronous data store.
+ *
+ * The asynchronous part of the data store is implemented using Iris.  iris_arbiter_coordinate()
+ * is used to manage all of the concurrent vs exclusive requests to the data-store.
+ *
+ * There are two ways you can manipulate the data on the way in or out of the data-store.  Using
+ * the "transform" property, you can alter the buffers directly before the write, or right after
+ * the read.  Using the "formatter" property, you can control how the content in #GValue's are
+ * serialized to disk.  This would allow the storage in formats such as JSON or a lightweight
+ * binary format implemented in #CatalinaBinaryFormatter.
+ *
+ * The properties are not thread-safe, and therefore should only be changed before the storage
+ * instance is opened.
+ *
+ * You can use the storage in either a synchronous or asynchronous manner.  You may even mix
+ * and match.  However, keep in mind the code is written in such a way that prefers the
+ * asynchronous implementations.
+ *
+ * Asynchronous example
+ *
+ * Compile with gcc -o example example.c `pkg-config --libs --cflags catalina-1.0`.
+ *
+ * |[
+ * #include <gio/gio.h>
+ * #include <catalina/catalina.h>
+ * #include <iris/iris.h>
+ * 
+ *static void
+ * test_get_cb (CatalinaStorage *storage,
+ *               GAsyncResult    *result,
+ *               gpointer         user_data)
+ * {
+ * 	gchar *buffer = NULL;
+ * 	gsize  buffer_length = 0;
+ * 	catalina_storage_get_finish (storage, result, &buffer, &buffer_length, NULL);
+ * 	g_free (buffer);
+ * 	g_main_loop_quit (user_data);
+ *}
+ *
+ * static void
+ * test_open_cb (CatalinaStorage *storage,
+ *               GAsyncResult    *result,
+ *              gpointer         user_data)
+ * {
+ * 	if (catalina_storage_open_finish (storage, result, NULL)) {
+ * 		catalina_storage_get_async (storage, "key", -1, (GAsyncReadyCallback)test_get_cb, user_data);
+ * 	}
+ * }
+ * 
+ * int
+ * main (int argc, char *argv[])
+ * {
+ * 	g_type_init ();
+ * 	iris_init ();
+ * 	CatalinaStorage *storage = catalina_storage_new ();
+ * 	GMainLoop *loop = g_main_loop_new (NULL, FALSE);
+ * 	catalina_storage_open_async (storage, ".", "catalina.db", (GAsyncReadyCallback)test_open_cb, loop);
+ * 	g_main_loop_run (loop);
+ * 	return 0;
+ * }
+ * ]|
+ *
+ * Synchronous example
+ *
+ * |[
+ * CatalinaStorage *storage = catalina_storage_new ();
+ * GError *oerror = NULL;
+ * if (catalina_storage_open (storage, ".", "catalina.db", &oerror)) {
+ * 	gchar *buffer = NULL;
+ * 	gsize  buffer_length = 0;
+ * 	GError *error = NULL;
+ * 	if (catalina_storage_get (storage, "key", -1, &buffer, &buffer_length, &error)) {
+ * 		g_print ("Found data!\n");
+ * 		g_free (buffer);
+ * 	}
+ * 	else
+ * 		g_printerr ("Error: %s\n", error->message);
+ * }
+ * else
+ * 	g_printerr ("Error: %s", oerror->message);
+ * ]|
  */
 
 G_DEFINE_TYPE (CatalinaStorage, catalina_storage, G_TYPE_OBJECT)
