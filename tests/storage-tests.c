@@ -251,6 +251,30 @@ test16 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test17 (void)
+{
+	GValue v = {0,};
+	g_value_init (&v, G_TYPE_STRING);
+	g_value_set_string (&v, TEST_DATA_BINARY);
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	g_assert (catalina_storage_set_value (storage, TEST_KEY_BINARY, -1, &v, NULL));
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test18 (void)
+{
+	GValue v = {0,};
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	g_assert (catalina_storage_get_value (storage, TEST_KEY_BINARY, -1, &v, NULL));
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -275,6 +299,8 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/get(2)", test13);
 	g_test_add_func ("/CatalinaStorage/set_value_async(1)", test16);
 	g_test_add_func ("/CatalinaStorage/get_value_async(1)", test15);
+	g_test_add_func ("/CatalinaStorage/set_value(1)", test17);
+	g_test_add_func ("/CatalinaStorage/get_value(1)", test18);
 
 	return g_test_run ();
 }
