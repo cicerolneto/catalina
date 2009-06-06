@@ -11,7 +11,7 @@ NULL =
 DOC_MODULE=catalina
 
 # The top-level SGML file. You can change this if you want to.
-DOC_MAIN_SGML_FILE=$(DOC_MODULE)-docs.xml
+DOC_MAIN_SGML_FILE=$(DOC_MODULE)-docs.sgml
 
 # The directory containing the source code. Relative to $(srcdir).
 # gtk-doc will search all .c & .h files beneath here for inline comments
