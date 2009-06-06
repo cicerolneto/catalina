@@ -913,18 +913,39 @@ catalina_storage_get_value_finish (CatalinaStorage  *storage,
  */
 gboolean
 catalina_storage_get_value (CatalinaStorage  *storage,
-                            const            gchar *key,
+                            const gchar      *key,
                             gssize            key_length,
                             GValue           *value,
                             GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	gchar                  *buffer        = NULL;
+	gsize                   buffer_length = 0;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (key != NULL, FALSE);
+	g_return_val_if_fail (key_length == -1 || key_length > 0, FALSE);
+	g_return_val_if_fail (value != NULL, FALSE);
 
 	priv = storage->priv;
 
-	return FALSE;
+	if (!priv->formatter) {
+		g_set_error (error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Instance missing formatter for deserialization");
+		return FALSE;
+	}
+
+	if (!catalina_storage_get (storage, key, key_length,
+	                           &buffer, &buffer_length, error))
+		return FALSE;
+
+	success = catalina_formatter_deserialize (priv->formatter, value,
+	                                          buffer, buffer_length,
+	                                          error);
+	g_free (buffer);
+	return success;
 }
 
 static void
@@ -1038,18 +1059,40 @@ catalina_storage_set_value_finish (CatalinaStorage  *storage,
  */
 gboolean
 catalina_storage_set_value (CatalinaStorage  *storage,
-                            const            gchar *key,
+                            const gchar      *key,
                             gssize            key_length,
                             const GValue     *value,
                             GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	gchar                  *buffer        = NULL;
+	gsize                   buffer_length = 0;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (key != NULL, FALSE);
+	g_return_val_if_fail (key_length == -1 || key_length > 0, FALSE);
+	g_return_val_if_fail (value != NULL, FALSE);
 
 	priv = storage->priv;
 
-	return FALSE;
+	if (!priv->formatter) {
+		g_set_error (error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Instance missing formatter for deserialization");
+		return FALSE;
+	}
+
+	if (!catalina_formatter_serialize (priv->formatter, value,
+	                                   &buffer, &buffer_length,
+	                                   error))
+		return FALSE;
+
+	success = catalina_storage_set (storage, key, key_length,
+	                                buffer, buffer_length, error);
+	g_free (buffer);
+
+	return success;
 }
 
 /**
