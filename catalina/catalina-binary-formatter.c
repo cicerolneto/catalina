@@ -243,7 +243,11 @@ long_serialize (guchar         type_id,
                 gchar         *buffer,
                 GError       **error)
 {
-	gulong i = g_htonl (value->data[0].v_ulong);
+	/*guint64 v = value->data[0].v_uint64;
+	guint a = *((guint*)&v);
+	guint b = *((guint*)&v + 4);*/
+
+	guint64 i = value->data[0].v_uint64;
 	memcpy (buffer, &i, 8);
 	return TRUE;
 }
@@ -352,8 +356,10 @@ long_deserialize (guchar        type_id,
                   const gchar  *buffer,
                   GError      **error)
 {
+	guint64 i = 0;
 	value->g_type = g_type_for_type_id (type_id);
-	value->data[0].v_ulong = g_ntohl (*((gulong*)buffer));
+	memcpy (&i, buffer, 8);
+	value->data[0].v_uint64 = i;
 	return TRUE;
 }
 
