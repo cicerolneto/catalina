@@ -739,7 +739,7 @@ catalina_storage_get (CatalinaStorage  *storage,
 	iris_port_post (priv->cn_port, message);
 	iris_message_unref (message);
 
-	if (!(success = storage_task_wait (task, error))) {
+	if ((success = storage_task_wait (task, error)) == TRUE) {
 		*value = task->data;
 		if (value_length)
 			*value_length = task->data_length;
