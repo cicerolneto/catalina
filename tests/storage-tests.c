@@ -1,5 +1,6 @@
 #include <catalina/catalina.h>
 #include <iris/iris.h>
+#include <string.h>
 #include "async-test.h"
 
 #define TEST_KEY  "test-key"
@@ -9,7 +10,7 @@
 #define TEST_DATA_ZLIB "test-data-zlib"
 
 #define TEST_KEY_BINARY "test-key-zlib"
-#define TEST_DATA_BINARY "test-data-zlib"
+static gchar *TEST_DATA_BINARY = NULL;
 
 static void
 test1 (void)
@@ -239,8 +240,8 @@ static void
 test16 (void)
 {
 	GValue value = {0,};
-	g_value_init (&value, G_TYPE_STRING);
-	g_value_set_string (&value, TEST_DATA_BINARY);
+	g_value_init (&value, G_TYPE_INT);
+	g_value_set_int (&value, 42);
 
 	AsyncTest *test = async_test_new ();
 	CatalinaStorage *storage = catalina_storage_new ();
@@ -282,6 +283,11 @@ main (gint   argc,
 	g_type_init ();
 	g_test_init (&argc, &argv, NULL);
 	iris_init ();
+
+	TEST_DATA_BINARY = g_malloc0 (5);
+	TEST_DATA_BINARY [0] = 1 << 0;
+	guint i = g_htonl (42);
+	memcpy (&TEST_DATA_BINARY [1], &i, 4);
 
 	g_test_add_func ("/CatalinaStorage/new(1)", test1);
 	g_test_add_func ("/CatalinaStorage/:use-idle(1)", test2);
