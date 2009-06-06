@@ -356,10 +356,8 @@ long_deserialize (guchar        type_id,
                   const gchar  *buffer,
                   GError      **error)
 {
-	guint64 i = 0;
 	value->g_type = g_type_for_type_id (type_id);
-	memcpy (&i, buffer, 8);
-	value->data[0].v_uint64 = i;
+	value->data[0].v_uint64 = *((guint64*)buffer);
 	return TRUE;
 }
 
