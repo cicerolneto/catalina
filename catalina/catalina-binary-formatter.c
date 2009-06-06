@@ -232,7 +232,7 @@ int_serialize (guchar         type_id,
                gchar         *buffer,
                GError       **error)
 {
-	guint i = g_htonl (value->data[0].v_uint);
+	guint i = GUINT_TO_BE (value->data[0].v_uint);
 	memcpy (buffer, &i, 4);
 	return TRUE;
 }
@@ -243,11 +243,7 @@ long_serialize (guchar         type_id,
                 gchar         *buffer,
                 GError       **error)
 {
-	/*guint64 v = value->data[0].v_uint64;
-	guint a = *((guint*)&v);
-	guint b = *((guint*)&v + 4);*/
-
-	guint64 i = value->data[0].v_uint64;
+	guint64 i = GUINT64_TO_BE (value->data[0].v_uint64);
 	memcpy (buffer, &i, 8);
 	return TRUE;
 }
@@ -346,7 +342,7 @@ int_deserialize (guchar        type_id,
                  GError      **error)
 {
 	value->g_type = g_type_for_type_id (type_id);
-	value->data[0].v_uint = g_ntohl (*((guint*)buffer));
+	value->data[0].v_uint = GUINT_FROM_BE (*((guint*)buffer));
 	return TRUE;
 }
 
@@ -357,7 +353,7 @@ long_deserialize (guchar        type_id,
                   GError      **error)
 {
 	value->g_type = g_type_for_type_id (type_id);
-	value->data[0].v_uint64 = *((guint64*)buffer);
+	value->data[0].v_uint64 = GUINT64_FROM_BE (*((guint64*)buffer));
 	return TRUE;
 }
 
