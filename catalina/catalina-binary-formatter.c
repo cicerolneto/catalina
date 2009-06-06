@@ -324,18 +324,15 @@ object_serialize (guchar         type_id,
 static GType
 g_type_for_type_id (guint type_id)
 {
-	GTypeSerializer *s = g_hash_table_lookup (type_id_funcs, &type_id);
-	if (s) {
-		GHashTableIter iter;
-		gpointer key, value;
-		g_hash_table_iter_init (&iter, type_funcs);
-		while (g_hash_table_iter_next (&iter, &key, &value)) {
-			if (value == s) {
-				return (GType) GPOINTER_TO_INT (key);
-			}
-		}
+	GHashTableIter iter;
+	gpointer key, value;
+	g_hash_table_iter_init (&iter, type_funcs);
+	while (g_hash_table_iter_next (&iter, &key, &value)) {
+		GTypeSerializer *s = value;
+		if (s->type_id == type_id)
+			return s->g_type;
 	}
-	return G_TYPE_NONE;
+	return 0;
 }
 
 static gboolean
