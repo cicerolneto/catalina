@@ -308,7 +308,8 @@ object_serialize (guchar         type_id,
 			memcpy (buffer + 1, &type_name, type_name_len);
 			buffer = buffer + 1 + type_name_len;
 			if (!s->serialize (s->type_id, value, buffer, error)) {
-				g_value_unset (&v);
+				if (v.g_type)
+					g_value_unset (&v);
 				return FALSE;
 			}
 		}
