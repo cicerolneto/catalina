@@ -40,21 +40,26 @@
     <title>Catalina Overview</title>
     <partintro>
       <para>
-      Catalina is a lightweight data-store for use in GObject applications.
-      It includes serializers and data tranforms for compression.
+      Catalina is an asynchronous data-store designed to be simple to use by
+      applications that use GObject.  It provides features such as transparent
+      serialization for GObject classes as well as many primitive types such as
+      gint and gchar.
+      </para>
+      <para>
+      In addition, it supports custom serialization methods through the
+      CatalinaFormatter interface.  CatalinaBinaryFormatter provides a compact
+      binary format.
+      </para>
+      <para>
+      Using the CatalinaTransform interface, data can be manipulated when reading
+      and writing to the data-store which allows support for transparent
+      compression or encryption.
       </para>
     </partintro>
   </part>
 
   <part id="catalina-base">
     <title>Catalina Reference</title>
-    <partintro>
-      <para>
-      Catalina provides wrappers around the Berkeley DB for storage.  It includes
-      asynchronous access to the storage as well as various serialization formats
-      and compression.
-      </para>
-    </partintro>
 
     <chapter>
       <title>Storage</title>
