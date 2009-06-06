@@ -216,7 +216,7 @@ test15 (void)
 	AsyncTest *test = async_test_new ();
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
-	g_assert (catalina_storage_open (storage, ",", "storage-tests.db", NULL));
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
 	g_assert (catalina_storage_set (storage, TEST_KEY_BINARY, -1, TEST_DATA_BINARY, -1, NULL));
 	catalina_storage_get_value_async (storage, TEST_KEY_BINARY, -1, test15_cb, test);
 	async_test_wait (test);
