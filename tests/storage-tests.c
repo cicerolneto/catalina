@@ -8,6 +8,9 @@
 #define TEST_KEY_ZLIB  "test-key-zlib"
 #define TEST_DATA_ZLIB "test-data-zlib"
 
+#define TEST_KEY_BINARY "test-key-zlib"
+#define TEST_DATA_BINARY "test-data-zlib"
+
 static void
 test1 (void)
 {
@@ -193,6 +196,61 @@ test14 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test15_cb (GObject      *object,
+           GAsyncResult *result,
+           gpointer      user_data)
+{
+	AsyncTest *test  = user_data;
+	GValue     value = {0,};
+
+	if (!catalina_storage_get_value_finish (CATALINA_STORAGE (object), result,
+	                                        &value, &test->error))
+		async_test_error (test);
+	async_test_complete (test);
+}
+
+static void
+test15 (void)
+{
+	AsyncTest *test = async_test_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
+	g_assert (catalina_storage_open (storage, ",", "storage-tests.db", NULL));
+	g_assert (catalina_storage_set (storage, TEST_KEY_BINARY, -1, TEST_DATA_BINARY, -1, NULL));
+	catalina_storage_get_value_async (storage, TEST_KEY_BINARY, -1, test15_cb, test);
+	async_test_wait (test);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test16_cb (GObject      *object,
+           GAsyncResult *result,
+           gpointer      user_data)
+{
+	AsyncTest *test = user_data;
+	if (!catalina_storage_set_value_finish (CATALINA_STORAGE (object), result, &test->error))
+		async_test_error (test);
+	else
+		async_test_complete (test);
+}
+
+static void
+test16 (void)
+{
+	GValue value = {0,};
+	g_value_init (&value, G_TYPE_STRING);
+	g_value_set_string (&value, TEST_DATA_BINARY);
+
+	AsyncTest *test = async_test_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_set_value_async (storage, TEST_KEY_BINARY, -1, &value, test16_cb, test);
+	async_test_wait (test);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -215,6 +273,8 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/get_async(1)", test9);
 	g_test_add_func ("/CatalinaStorage/get(1)", test12);
 	g_test_add_func ("/CatalinaStorage/get(2)", test13);
+	g_test_add_func ("/CatalinaStorage/set_value_async(1)", test16);
+	g_test_add_func ("/CatalinaStorage/get_value_async(1)", test15);
 
 	return g_test_run ();
 }

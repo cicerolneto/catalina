@@ -784,6 +784,48 @@ catalina_storage_set (CatalinaStorage  *storage,
 	return success;
 }
 
+static void
+catalina_storage_get_value_async_cb (CatalinaStorage *storage,
+                                     GAsyncResult    *result,
+                                     StorageTask     *task)
+{
+	CatalinaStoragePrivate *priv;;
+	gchar                  *buffer        = NULL;
+	gsize                   buffer_length = 0;
+
+	g_return_if_fail (storage != NULL);
+	g_return_if_fail (result != NULL);
+	g_return_if_fail (task != NULL);
+
+	priv = storage->priv;
+
+	if (!catalina_storage_get_finish (storage, result,
+	                                  &buffer, &buffer_length,
+	                                  &task->error))
+		goto failure;
+
+	if (!priv->formatter) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Instance missing formatter for deserialization");
+		goto failure;
+	}
+
+	if (!catalina_formatter_deserialize (priv->formatter, &task->value,
+	                                     buffer, buffer_length,
+	                                     &task->error))
+		goto failure;
+
+	g_free (buffer);
+	storage_task_succeed (task);
+	return;
+
+failure:
+	g_free (buffer);
+	storage_task_fail (task);
+	return;
+}
+
 /**
  * catalina_storage_get_value_async:
  * @storage: A #CatalinaStorage
@@ -794,16 +836,26 @@ catalina_storage_set (CatalinaStorage  *storage,
  */
 void
 catalina_storage_get_value_async (CatalinaStorage     *storage,
-                                  const               gchar *key,
+                                  const gchar         *key,
                                   gssize               key_length,
                                   GAsyncReadyCallback  callback,
                                   gpointer             user_data)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
 
 	g_return_if_fail (CATALINA_IS_STORAGE (storage));
 
 	priv = storage->priv;
+
+	if (!priv->formatter)
+		g_critical ("%s called without a formatter", __func__);
+
+	task = storage_task_new (storage, TRUE, callback, user_data,
+	                         catalina_storage_get_value_async);
+	catalina_storage_get_async (storage, key, key_length,
+	                            (GAsyncReadyCallback)catalina_storage_get_value_async_cb,
+	                            task);
 }
 
 /**
@@ -822,12 +874,31 @@ catalina_storage_get_value_finish (CatalinaStorage  *storage,
                                    GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+	g_return_val_if_fail (g_simple_async_result_is_valid (result, G_OBJECT (storage),
+	                                                      catalina_storage_get_value_async),
+	                      FALSE);
 
 	priv = storage->priv;
+	task = g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (result));
+	success = task->success;
 
-	return FALSE;
+	if (task->error) {
+		if (error && *error == NULL)
+			*error = g_error_copy (task->error);
+	}
+
+	if (success) {
+		if (!G_VALUE_TYPE (value))
+			g_value_init (value, G_VALUE_TYPE (&task->value));
+		g_value_copy (&task->value, value);
+	}
+
+	storage_task_free (task, FALSE, TRUE);
+	return success;
 }
 
 /**
@@ -856,6 +927,17 @@ catalina_storage_get_value (CatalinaStorage  *storage,
 	return FALSE;
 }
 
+static void
+catalina_storage_set_value_async_cb (CatalinaStorage *storage,
+                                     GAsyncResult    *result,
+                                     StorageTask     *task)
+{
+	if (!catalina_storage_set_finish (storage, result, &task->error))
+		storage_task_fail (task);
+	else
+		storage_task_succeed (task);
+}
+
 /**
  * catalina_storage_set_value_async:
  * @storage: A #CatalinaStorage
@@ -874,10 +956,41 @@ catalina_storage_set_value_async (CatalinaStorage     *storage,
                                   gpointer             user_data)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gchar                  *buffer        = NULL;
+	gsize                   buffer_length = 0;
 
 	g_return_if_fail (CATALINA_IS_STORAGE (storage));
 
 	priv = storage->priv;
+	task = storage_task_new (storage, TRUE, callback, user_data,
+	                         catalina_storage_set_value_async);
+
+	if (!priv->formatter) {
+		g_critical ("%s: Storage instance missing a CatalinaFormatter", __func__);
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Storage instance missing a CatalinaFormatter");
+		storage_task_fail (task);
+		storage_task_free (task, FALSE, FALSE);
+		return;
+	}
+
+	if (!catalina_formatter_serialize (priv->formatter, value,
+	                                   &buffer, &buffer_length,
+	                                   &task->error))
+	{
+		storage_task_fail (task);
+		storage_task_free (task, FALSE, FALSE);
+		return;
+	}
+
+	catalina_storage_set_async (storage, key, key_length,
+	                            buffer, buffer_length,
+	                            (GAsyncReadyCallback)catalina_storage_set_value_async_cb,
+	                            task);
+
+	g_free (buffer);
 }
 
 /**
@@ -894,12 +1007,23 @@ catalina_storage_set_value_finish (CatalinaStorage  *storage,
                                    GError          **error)
 {
 	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	gboolean                success;
 
 	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
 
 	priv = storage->priv;
+	task = g_simple_async_result_get_op_res_gpointer ((gpointer)result);
 
-	return FALSE;
+	success = task->success;
+	if (task->error && error && *error == NULL) {
+		*error = task->error;
+		task->error = NULL;
+	}
+
+	storage_task_free (task, TRUE, TRUE);
+
+	return success;
 }
 
 /**
@@ -1157,23 +1281,23 @@ handle_get (CatalinaStorage *storage,
 	{
 		DBT      db_key,
 		         db_value;
-		DB_TXN  *txn   = NULL;
-		gint     flags = 0,
+		DB_TXN  *txn    = NULL;
+		gint     flags  = 0,
 		         ret;
 
 		CLEAR_DBT (db_key);
 		CLEAR_DBT (db_value);
 
 		db_key.data = task->key;
-		db_key.size = task->key_length;
+		db_key.size = task->key_length != -1 ? task->key_length : strlen (task->key) + 1;
 		db_key.ulen = db_key.size;
 		db_key.flags = DB_DBT_USERMEM;
 		db_value.flags = DB_DBT_MALLOC;
 
 		if ((ret = priv->db->get (priv->db, txn, &db_key, &db_value, flags)) != 0) {
-			g_set_error_literal (&task->error, CATALINA_STORAGE_ERROR,
-					     CATALINA_STORAGE_ERROR_NO_SUCH_KEY,
-					     "The requested key could not be found");
+			g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+			             CATALINA_STORAGE_ERROR_NO_SUCH_KEY,
+			             "%s", db_strerror (ret));
 		}
 		else {
 			if (priv->transform) {
@@ -1291,10 +1415,6 @@ catalina_storage_cn_handle_message (IrisMessage     *message,
                                     CatalinaStorage *storage)
 {
 	switch (message->what) {
-	case MESSAGE_GET_VALUE:
-		break;
-	case MESSAGE_SET_VALUE:
-		break;
 	case MESSAGE_GET:
 		handle_get (storage, message);
 		break;
