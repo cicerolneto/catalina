@@ -171,6 +171,24 @@ get_serializer_for_gtype (GType type)
 	return NULL;
 }
 
+static GTypeSerializer*
+get_serializer_for_type_id (guchar type_id)
+{
+	GTypeSerializer *s;
+	gpointer         key, value;
+	GHashTableIter   iter;
+
+	g_hash_table_iter_init (&iter, type_funcs);
+
+	while (g_hash_table_iter_next (&iter, &key, &value)) {
+		s = value;
+		if (s != NULL && s->type_id == type_id)
+			return s;
+	}
+
+	return NULL;
+}
+
 static gsize
 object_get_length (guchar        type_id,
                    const GValue *value)
