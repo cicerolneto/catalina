@@ -423,7 +423,6 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
 	g_return_val_if_fail (buffer_length != NULL, FALSE);
 
 	if ((stream_length = get_buffer_length (value)) == 0) {
-		g_debug ("UH, OH");
 		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
 		             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
 		             "Do not know how to format type \"%s\"",
@@ -433,7 +432,7 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
 
 	stream = g_malloc0 (stream_length);
 	stream [0] = get_type_id (value);
-	if (write_value ((gchar*)buffer + 1, value, error)) {
+	if (write_value ((gchar*)stream + 1, value, error)) {
 		*buffer = stream;
 		*buffer_length = stream_length;
 		return TRUE;
@@ -444,15 +443,47 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
 }
 
 static gboolean
+read_value (guchar        type_id,
+            const gchar  *buffer,
+            GValue       *value,
+            GError      **error)
+{
+	g_return_val_if_fail (value != NULL, FALSE);
+
+	GTypeSerializer *s = get_serializer_for_type_id (type_id);
+
+	if (s != NULL) {
+		if (G_VALUE_TYPE (value) == 0)
+			g_value_init (value, s->g_type);
+		return s->deserialize (s->type_id, value, buffer, error);
+	}
+
+	return FALSE;
+}
+
+static gboolean
 catalina_binary_formatter_real_deserialize (CatalinaFormatter  *formatter,
                                             GValue             *value,
                                             gchar              *buffer,
                                             gsize               buffer_length,
                                             GError            **error)
 {
-	g_value_init (value, G_TYPE_INT);
-	g_value_set_int (value, 42);
-	return TRUE;
+	guchar type_id;
+
+	g_return_val_if_fail (value != NULL, FALSE);
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length > 0, FALSE);
+
+	type_id = buffer [0];
+
+	if (read_value (type_id, (gchar*)buffer + 1, value, error))
+		return TRUE;
+
+	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+	             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
+	             "Do not know how to deserialize type %d", type_id);
+
+	return FALSE;
 }
 
 static void
