@@ -62,8 +62,8 @@ AM_CONDITIONAL(ENABLE_GLIB_TEST, test "x$enable_glibtest" = "xyes")
 AX_PATH_BDB([4.6],[
 	LIBS="$BDB_LIBS"
 	LDFLAGS="$BDB_LDFLAGS $LDFLAGS"
-	CPPFLAGS="$CPPFLAGS $BDB_CPPFLAGS"
-])
+	CPPFLAGS="$CPPFLAGS $BDB_CPPFLAGS"],
+	AC_MSG_ERROR([Berkeley DB not found]))
 
 dnl = Enable strict compiler flags =========================================
 # use strict compiler flags only on development releases
