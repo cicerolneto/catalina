@@ -364,7 +364,7 @@ string_deserialize (guchar        type_id,
                     GError      **error)
 {
 	value->g_type = G_TYPE_STRING;
-	value->data[0].v_pointer = "";
+	value->data[0].v_pointer = g_strdup (buffer);
 	return TRUE;
 }
 

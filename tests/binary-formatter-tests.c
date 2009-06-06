@@ -111,6 +111,24 @@ test8 (void)
 	g_assert_cmpint (v.data[0].v_ulong,==,v2.data[0].v_ulong);
 }
 
+static void
+test9 (void)
+{
+	GValue v  = {0,};
+	GValue v2 = {0,};
+	gchar *b  = NULL;
+	gsize  l  = 0;
+
+	g_value_init (&v, G_TYPE_STRING);
+	g_value_set_string (&v, "MY TEST STRING");
+
+	CatalinaFormatter *f = catalina_binary_formatter_new ();
+	g_assert (catalina_formatter_serialize (f, &v, &b, &l, NULL));
+	g_assert (b != NULL && l > 0);
+	g_assert (catalina_formatter_deserialize (f, &v2, b, l, NULL));
+	g_assert_cmpstr (v.data[0].v_pointer,==,v2.data[0].v_pointer);
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -126,6 +144,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<uint>(1)", test6);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<uint64>(1)", test7);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<ulong>(1)", test8);
+	g_test_add_func ("/CatalinaBinaryFormatter/serialization<string>(1)", test9);
 
 	return g_test_run ();
 }
