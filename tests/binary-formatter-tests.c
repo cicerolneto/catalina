@@ -13,7 +13,7 @@ test2 (void)
 	gsize l = 0;
 	GValue v = {0,}, v2 = {0,};
 	g_value_init (&v, G_TYPE_INT);
-	g_value_set_int (&v, 42);
+	g_value_set_int (&v, G_MININT);
 	CatalinaFormatter *f = catalina_binary_formatter_new ();
 	g_assert (catalina_formatter_serialize (f, &v, &b, &l, NULL));
 	g_assert (b != NULL && l > 0);
@@ -66,6 +66,51 @@ test5 (void)
 	g_assert_cmpint (v.data[0].v_double,==,v2.data[0].v_double);
 }
 
+static void
+test6 (void)
+{
+	gchar *b = NULL;
+	gsize l = 0;
+	GValue v = {0,}, v2 = {0,};
+	g_value_init (&v, G_TYPE_UINT);
+	g_value_set_uint (&v, G_MAXUINT);
+	CatalinaFormatter *f = catalina_binary_formatter_new ();
+	g_assert (catalina_formatter_serialize (f, &v, &b, &l, NULL));
+	g_assert (b != NULL && l > 0);
+	g_assert (catalina_formatter_deserialize (f, &v2, b, l, NULL));
+	g_assert_cmpint (g_value_get_uint (&v),==,g_value_get_uint(&v2));
+}
+
+static void
+test7 (void)
+{
+	gchar *b = NULL;
+	gsize l = 0;
+	GValue v = {0,}, v2 = {0,};
+	g_value_init (&v, G_TYPE_UINT64);
+	g_value_set_uint64 (&v, G_MAXUINT64);
+	CatalinaFormatter *f = catalina_binary_formatter_new ();
+	g_assert (catalina_formatter_serialize (f, &v, &b, &l, NULL));
+	g_assert (b != NULL && l > 0);
+	g_assert (catalina_formatter_deserialize (f, &v2, b, l, NULL));
+	g_assert_cmpint (v.data[0].v_uint64,==,v2.data[0].v_uint64);
+}
+
+static void
+test8 (void)
+{
+	gchar *b = NULL;
+	gsize l = 0;
+	GValue v = {0,}, v2 = {0,};
+	g_value_init (&v, G_TYPE_ULONG);
+	v.data[0].v_long = G_MAXULONG;
+	CatalinaFormatter *f = catalina_binary_formatter_new ();
+	g_assert (catalina_formatter_serialize (f, &v, &b, &l, NULL));
+	g_assert (b != NULL && l > 0);
+	g_assert (catalina_formatter_deserialize (f, &v2, b, l, NULL));
+	g_assert_cmpint (v.data[0].v_ulong,==,v2.data[0].v_ulong);
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -78,6 +123,9 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<int64>(1)", test3);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<long>(1)", test4);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<double>(1)", test5);
+	g_test_add_func ("/CatalinaBinaryFormatter/serialization<uint>(1)", test6);
+	g_test_add_func ("/CatalinaBinaryFormatter/serialization<uint64>(1)", test7);
+	g_test_add_func ("/CatalinaBinaryFormatter/serialization<ulong>(1)", test8);
 
 	return g_test_run ();
 }
