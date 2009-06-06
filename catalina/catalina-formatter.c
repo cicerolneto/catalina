@@ -74,12 +74,18 @@ catalina_formatter_get_type (void)
 /**
  * catalina_formatter_serialize:
  * @formatter: A #CatalinaFormatter
- * @value: A #GValue
- * @buffer: A #gchar
- * @buffer_length: A #gsize
- * @error: A #GError
+ * @value: the #GValue to serialize
+ * @buffer: A location to store the buffer
+ * @buffer_length: A location to store the buffer length
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Attempts to serialize the contents of @value to a new stream.  If successful, the stream
+ * will be stored to @buffer and @buffer_length will be set to the length of the resulting
+ * buffer.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_formatter_serialize (CatalinaFormatter  *formatter,
@@ -96,11 +102,15 @@ catalina_formatter_serialize (CatalinaFormatter  *formatter,
  * catalina_formatter_deserialize:
  * @formatter: A #CatalinaFormatter
  * @value: A #GValue
- * @buffer: A #gchar
- * @buffer_length: A #gsize
- * @error: A #GError
+ * @buffer: A buffer to deserialize
+ * @buffer_length: The length of @buffer in bytes
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Attempts to deserialize the contents of @buffer to @value.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_formatter_deserialize (CatalinaFormatter  *formatter,

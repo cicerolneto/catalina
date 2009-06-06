@@ -72,15 +72,21 @@ catalina_transform_get_type (void)
 /**
  * catalina_transform_read:
  * @transform: A #CatalinaTransform
- * @input:
- * @input_length:
- * @output:
- * @output_length:
- * @error:
+ * @input: A buffer to transform
+ * @input_length: The length of @input in bytes
+ * @output: A location to store the resulting buffer
+ * @output_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
  *
- * 
+ * Transforms the input buffer into a new stream.  If %TRUE is returned and @output_length is set
+ * to zero, then the input buffer should continue to be used.
  *
- * Return value: 
+ * This method is typically used for operations such as inflating compressed data back into
+ * its original form.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_transform_read (CatalinaTransform  *transform,
@@ -97,15 +103,21 @@ catalina_transform_read (CatalinaTransform  *transform,
 /**
  * catalina_transform_write:
  * @transform: A #CatalinaTransform
- * @input:
- * @input_length:
- * @output:
- * @output_length:
- * @error:
+ * @input: A buffer to transform
+ * @input_length: The length of @input in bytes
+ * @output: A location to store the resulting buffer
+ * @output_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
  *
- * 
+ * Transforms the input buffer into a new stream.  If %TRUE is returned and @output_length is set
+ * to zero, then the input buffer should continue to be used.
  *
- * Return value: 
+ * This method is typically used for operations such as deflating cleartext into a compressed
+ * format.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_transform_write (CatalinaTransform  *transform,
