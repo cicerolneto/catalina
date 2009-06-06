@@ -144,9 +144,8 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
 		const gchar *tmp = g_value_get_string (value);
 		glong  len = strlen (tmp);
 		*buffer_length = 1 + len + 1;
-		*buffer = g_malloc (*buffer_length);
+		*buffer = g_malloc0 (*buffer_length);
 		*buffer [0] = BINARY_STRING;
-		*buffer [*buffer_length - 1] = '\0';
 		memcpy (*buffer + 1, tmp, len);
 	}
 	else {
@@ -156,8 +155,6 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
 		             g_type_name (value_type));
 		return FALSE;
 	}
-
-	
 
 	return TRUE;
 }
@@ -169,6 +166,8 @@ catalina_binary_formatter_real_deserialize (CatalinaFormatter  *formatter,
                                             gsize               buffer_length,
                                             GError            **error)
 {
+	g_value_init (value, G_TYPE_INT);
+	g_value_set_int (value, 42);
 	return TRUE;
 }
 
