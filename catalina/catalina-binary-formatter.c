@@ -198,7 +198,7 @@ object_get_length (guchar        type_id,
 	GType        type   = G_VALUE_TYPE (value);
 	GObject     *object = g_value_get_object (value);
 	GParamSpec **params;
-	gsize        n_props;
+	guint        n_props;
 	gint         i;
 
 	/* make sure name length is < 256 */
@@ -271,7 +271,7 @@ object_serialize (guchar         type_id,
 	GParamSpec  **params;
 	const gchar  *type_name;
 	guchar        type_name_len;
-	gsize         n_props;
+	guint         n_props;
 	gint          i;
 
 	type_name = g_type_name (type);
