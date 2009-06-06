@@ -121,6 +121,8 @@ catalina_storage_class_init (CatalinaStorageClass *klass)
 	 *
 	 * The "use-idle" property determines if the callback for asynchronous requests
 	 * should happen inside of an idle-timeout in the main-loop.
+	 * 
+	 * If use-idle is %TRUE, callbacks will be performed inside of the main-loop.
 	 */
 	g_object_class_install_property (object_class,
 	                                 PROP_USE_IDLE,
@@ -135,7 +137,11 @@ catalina_storage_class_init (CatalinaStorageClass *klass)
 	/**
 	 * CatalinaStorage:transform:
 	 *
-	 * The "transform" property.
+	 * The "transform" property.  The transform has the ability to manipulate the buffer
+	 * on the way to and from the data-store.  This can be used to add features such as
+	 * encryption or compression.
+	 *
+	 * See catalina_transform_read() and catalina_transform_write().
 	 */
 	g_object_class_install_property (object_class,
 	                                 PROP_TRANSFORM,
@@ -148,7 +154,11 @@ catalina_storage_class_init (CatalinaStorageClass *klass)
 	/**
 	 * CatalinaStorage:formatter:
 	 *
-	 * The "formatter" property.
+	 * The "formatter" property.  The formatter is used when catalina_storage_get_value()
+	 * or catalina_storage_set_value() are called.  It is responsible for serializing and
+	 * deserializing the contents of a #GValue into a buffer.
+	 *
+	 * See catalina_formatter_serialize() and catalina_formatter_deserialize().
 	 */
 	g_object_class_install_property (object_class,
 	                                 PROP_FORMATTER,
@@ -193,7 +203,9 @@ catalina_storage_init (CatalinaStorage *storage)
 /**
  * catalina_storage_new:
  *
- * Return value: 
+ * Creates a new instance of #CatalinaStorage.
+ *
+ * Return value: the newly created #CatalinaStorage instance
  */
 CatalinaStorage*
 catalina_storage_new (void)
@@ -240,6 +252,9 @@ catalina_storage_set_use_idle (CatalinaStorage *storage,
  * @name: name of the database
  * @callback: A #GAsyncReadyCallback
  * @user_data: data for @callback
+ *
+ * Asynchronously opens the underlying data-store.  Call catalina_storage_open_finish()
+ * from within @callback to complete the request.
  */
 void
 catalina_storage_open_async (CatalinaStorage     *storage,
@@ -323,6 +338,12 @@ cleanup:
  * @name: the name of the database
  * @error: A location for a #GError or %NULL
  *
+ * Synchronously opens the underlying data-store for use.  This method is not the preferred
+ * way to perform the operation.  See using catalina_storage_open_async() for the preferred
+ * alternative.
+ *
+ * On failure, %FALSE is returned and @error is set.
+ *
  * Return value: %TRUE on success
  */
 gboolean
@@ -362,6 +383,9 @@ catalina_storage_open (CatalinaStorage  *storage,
  * @storage: A #CatalinaStorage
  * @callback: A #GAsyncReadyCallback
  * @user_data: A #gpointer
+ *
+ * Asynchronously closes the underlying data-store.  Use catalina_storage_close_finish()
+ * from within @callback to complete the request.
  */
 void
 catalina_storage_close_async (CatalinaStorage     *storage,
@@ -388,7 +412,11 @@ catalina_storage_close_async (CatalinaStorage     *storage,
  * @result: A #GAsyncResult
  * @error: A #GError
  *
- * Return value: 
+ * Completes the asynchronous request to close the underlying data-store.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_close_finish (CatalinaStorage  *storage,
@@ -429,9 +457,14 @@ cleanup:
 /**
  * catalina_storage_close:
  * @storage: A #CatalinaStorage
- * @error: A #GError
+ * @error: A location for a #GError
  *
- * Return value: 
+ * Synchronously closes the underlying data-store.  This method is not the preferred
+ * implementation.  See catalina_storage_close_async() for the preferred method.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_close (CatalinaStorage  *storage,
@@ -512,11 +545,17 @@ catalina_storage_get_async (CatalinaStorage     *storage,
  * catalina_storage_get_finish:
  * @storage: A #CatalinaStorage
  * @result: A #GAsyncResult
- * @value: A #gchar
- * @value_length: A #gsize
- * @error: A #GError
+ * @value: A location for the requested buffer
+ * @value_length: A location for the requested buffer size, or %NULL
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Completes an asynchronous get request.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * See catalina_storage_get_async().
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_get_finish (CatalinaStorage  *storage,
@@ -576,6 +615,8 @@ cleanup:
  * synchronous calls is not the most efficient way to complete the task.
  *
  * In the case of an error, %FALSE is returned and @error is set.
+ *
+ * See catalina_storage_get_async().
  *
  * Return value: %TRUE on success
  */
@@ -639,7 +680,8 @@ catalina_storage_get (CatalinaStorage  *storage,
  * @callback: A #GAsyncReadyCallback
  * @user_data: data for @callback
  *
- * 
+ * Asynchronously stores @value to the underlying data-store with @key.  Call
+ * catalina_storage_set_finish() from within @callback.
  */
 void
 catalina_storage_set_async (CatalinaStorage     *storage,
@@ -702,9 +744,13 @@ catalina_storage_set_async (CatalinaStorage     *storage,
  * catalina_storage_set_finish:
  * @storage: A #CatalinaStorage
  * @result: A #GAsyncResult
- * @error: A #GError
+ * @error: A location for #GError or %NULL
  *
- * Return value: 
+ * Completes an asynchronous set request.  Upon failure, %FALSE is returned and @error is set.
+ *
+ * See catalina_storage_set_async().
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_set_finish (CatalinaStorage  *storage,
@@ -742,12 +788,18 @@ catalina_storage_set_finish (CatalinaStorage  *storage,
  * catalina_storage_set:
  * @storage: A #CatalinaStorage
  * @key: the key of which to store @value
- * @key_length: the length of @key in bytes
+ * @key_length: the length of @key in bytes or -1 if the @key is %NULL terminated
  * @value: the data to store
  * @value_length: the length of @data in bytes
  * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Synchronously performs a set request.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * See catalina_storage_set_async().
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_set (CatalinaStorage  *storage,
@@ -833,6 +885,9 @@ failure:
  * @key_length: the length of @key in bytes
  * @callback: A #GAsyncReadyCallback
  * @user_data: data for @callback
+ *
+ * Asynchronously requests the content for @key.  In the process, the data is retrieved from
+ * storage and deserialized by the #CatalinaStorage instance's "formatter" property.
  */
 void
 catalina_storage_get_value_async (CatalinaStorage     *storage,
@@ -863,9 +918,14 @@ catalina_storage_get_value_async (CatalinaStorage     *storage,
  * @storage: A #CatalinaStorage
  * @result: A #GAsyncResult
  * @value: A #GValue
- * @error: A #GError
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Completes an asynchronous request to retreive the content from storage and deserialize
+ * using the instance's "formatter" property.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_get_value_finish (CatalinaStorage  *storage,
@@ -905,11 +965,16 @@ catalina_storage_get_value_finish (CatalinaStorage  *storage,
  * catalina_storage_get_value:
  * @storage: A #CatalinaStorage
  * @key: A #const
- * @key_length: A #gssize
- * @value: A #GValue
- * @error: A #GError
+ * @key_length: the length in bytes of @key or -1 if @key is %NULL terminated
+ * @value: A #GValue to store the resulting value
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Synchronously requests the content for @key and deserializes using the instances
+ * "formatter" property.
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_get_value (CatalinaStorage  *storage,
@@ -962,11 +1027,18 @@ catalina_storage_set_value_async_cb (CatalinaStorage *storage,
 /**
  * catalina_storage_set_value_async:
  * @storage: A #CatalinaStorage
- * @key: A #const
- * @key_length: A #gssize
- * @value: A #GValue
+ * @key: A buffer containing the key
+ * @key_length: the length of @key in bytes or -1 if @key is %NULL terminated
+ * @value: A #GValue to serialize and store
  * @callback: A #GAsyncReadyCallback
  * @user_data: A #gpointer
+ *
+ * Asynchronously requests the serialization of @value and storage to the underlying
+ * data-store.
+ *
+ * @value is serialized using the instances "formatter" property.
+ *
+ * Call catalina_storage_set_value_finish() from within @callback.
  */
 void
 catalina_storage_set_value_async (CatalinaStorage     *storage,
@@ -1018,9 +1090,13 @@ catalina_storage_set_value_async (CatalinaStorage     *storage,
  * catalina_storage_set_value_finish:
  * @storage: A #CatalinaStorage
  * @result: A #GAsyncResult
- * @error: A #GError
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Completes and asynchronous request to catalina_storage_set_value_async().
+ *
+ * Upon failure, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_set_value_finish (CatalinaStorage  *storage,
@@ -1050,12 +1126,18 @@ catalina_storage_set_value_finish (CatalinaStorage  *storage,
 /**
  * catalina_storage_set_value:
  * @storage: A #CatalinaStorage
- * @key: A #const
- * @key_length: A #gssize
- * @value: A #GValue
- * @error: A #GError
+ * @key: A buffer containing the key
+ * @key_length: the length of @key in bytes or -1 if @key is %NULL terminated
+ * @value: A #GValue to serialize and store
+ * @error: A location for a #GError or %NULL
  *
- * Return value: 
+ * Synchronously requests the serialization of @value and storage to the underlying data-store.
+ *
+ * Upon error, %FALSE is returned and @error is set.
+ *
+ * See catalina_storage_set_value_async().
+ *
+ * Return value: %TRUE on success
  */
 gboolean
 catalina_storage_set_value (CatalinaStorage  *storage,
@@ -1099,7 +1181,9 @@ catalina_storage_set_value (CatalinaStorage  *storage,
  * catalina_storage_get_transform:
  * @storage: A #CatalinaStorage
  *
- * Return value: 
+ * This method is not thread-safe.
+ *
+ * Return value: the #CatalinaTransform for the @storage instance.
  */
 CatalinaTransform*
 catalina_storage_get_transform (CatalinaStorage *storage)
@@ -1112,6 +1196,10 @@ catalina_storage_get_transform (CatalinaStorage *storage)
  * catalina_storage_set_transform:
  * @storage: A #CatalinaStorage
  * @transform: A #CatalinaTransform
+ *
+ * Sets the #CatalinaTransform for the storage.  This is the "transform" property.
+ *
+ * This method is not thread-safe.
  */
 void
 catalina_storage_set_transform (CatalinaStorage   *storage,
@@ -1128,7 +1216,9 @@ catalina_storage_set_transform (CatalinaStorage   *storage,
  * catalina_storage_get_formatter:
  * @storage: A #CatalinaStorage
  *
- * Return value: 
+ * This method is not thread-safe.
+ *
+ * Return value: The #CatalinaFormatter property
  */
 CatalinaFormatter*
 catalina_storage_get_formatter (CatalinaStorage *storage)
@@ -1140,7 +1230,11 @@ catalina_storage_get_formatter (CatalinaStorage *storage)
 /**
  * catalina_storage_set_formatter:
  * @storage: A #CatalinaStorage
- * @formatter: A #GObject
+ * @formatter: A #CatalinaFormatter
+ *
+ * Sets the "formatter" property.
+ *
+ * This method is not thread-safe.
  */
 void
 catalina_storage_set_formatter (CatalinaStorage   *storage,
