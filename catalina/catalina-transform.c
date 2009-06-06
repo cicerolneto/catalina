@@ -28,6 +28,16 @@
  * #CatalinaTransform provides a way to transform data buffers on the way
  * to and from storage.  A common use-case for this would be to add either
  * compression or encryption.
+ *
+ * You can add a transform to a #CatalinaStorage for transparent transformations
+ * of data to storage.
+ *
+ * #CatalinaTransform implementations must be thread safe for the interface methods.
+ *
+ * |[
+ * CatalinaStorage *storage = catalina_storage_new ();
+ * g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
+ * ]|
  */
 
 GType

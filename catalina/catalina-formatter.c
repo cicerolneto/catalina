@@ -29,6 +29,17 @@
  * data-types from glib and gobject into data-streams.  This is particularly
  * useful for converting objects, integers, and strings into content to be
  * stored within #CatalinaStorage.
+ *
+ *
+ * You can add a formatter to a #CatalinaStorage for transparent serialization
+ * and deserializtion to and from storage.
+ *
+ * #CatalinaFormatter implementations must be thread safe for the interface methods.
+ *
+ * |[
+ * CatalinaStorage *storage = catalina_storage_new ();
+ * g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
+ * ]|
  */
 
 GType
