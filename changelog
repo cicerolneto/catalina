@@ -1,0 +1,5 @@
+catalina (0.1.0-0) unstable; urgency=low
+
+  * Dummy changelog entry. Use debian/rules update-version to update.
+
+ -- Christian Hergert <chris@dronelabs.com>  Sat, 06 Jun 2009 17:19:21 -0700

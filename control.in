@@ -1,0 +1,54 @@
+Source: catalina
+Section: libs
+Priority: optional
+Maintainer: Christian Hergert <chris@dronelabs.com>
+Uploaders: Christian Hergert <chris@dronelabs.com>
+Build-Depends: cdbs (>= 0.4.41),
+               debhelper (>= 5),
+               gnome-pkg-tools (>= 0.11),
+               pkg-config (>= 0.14),
+               libglib2.0-dev (>= 2.16.0),
+               gtk-doc-tools (>= 1.9),
+               dpkg-dev (>= 1.14.13),
+               libdb-dev (>= 4.6),
+               libiris-dev (>= 0.1.0)
+Standards-Version: 3.8.0
+Homepage: http://dronelabs.com/p/catalina
+
+Package: libcatalina-1.0-0
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
+Description: GObject library for asynchronous key/value storage - shared libraries
+ Catalina is an asynchronous library for basic key/value storage.  It includes
+ compact serializers, compression, and encryption.
+ .
+ This package contains the shared libraries.
+
+Package: libcatalina-dev
+Section: libdevel
+Architecture: any
+Depends: libcatalina-1.0-0 (= ${binary:Version}),
+         ${misc:Depends},
+         libglib2.0-dev (>= 2.16.0)
+Suggests: libunique-doc, vala
+Description: GObject library for asynchronous key/value storage - development files
+ Catalina is an asynchronous library for basic key/value storage.  It includes
+ compact serializers, compression, and encryption.
+ .
+ This package contains the headers and development libraries needed to
+ build applications using the Catalina library
+
+Package: libcatalina-doc
+Section: doc
+Architecture: all
+Depends: ${misc:Depends}
+Recommends: libcatalina-1.0-0
+Suggests: devhelp
+Description: GObject library for asynchronous key/value storage - documentation
+ Catalina is an asynchronous library for basic key/value storage.  It includes
+ compact serializers, compression, and encryption.
+ .
+ This package contains the HTML documentation for the Catalina library
+

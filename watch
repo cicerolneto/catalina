@@ -1,0 +1,2 @@
+version=3
+http://ftp.dronelabs.com/sources/catalina/([0-9.]+)/catalina-([0-9.]+).tar.gz
