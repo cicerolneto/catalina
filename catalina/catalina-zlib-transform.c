@@ -257,12 +257,14 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 	/* cleanup and finish */
 	(void)deflateEnd(&strm);
 
-	/* create the output buffer (COMPRESSED(N) + ULEN(4) + WAS_COMPRESSED(1) */
+	guchar compressed = TRUE;
+
+	/* set the tail on the end */
+	belength = GUINT32_TO_BE (input_length);
 	*output_length = length + 5;
 	*output = g_malloc (*output_length);
-	*((gboolean*)(*output + *output_length)) = TRUE;
-	belength = GUINT32_TO_BE (length);
-	memcpy (*output + *output_length - 5, &belength, 4);
+	memcpy (((*output + *output_length) - 5), &belength, 4);
+	memcpy (((*output + *output_length) - 1), &compressed, 1);
 
 	/* copy the resulting chunks into the output buffer */
 	parts = g_slist_reverse (parts);
@@ -271,7 +273,7 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 			memcpy (*output, iter->data, length);
 			break;
 		}
-		
+
 		have = length - offset;
 		if (have > CHUNK)
 			have = CHUNK;
