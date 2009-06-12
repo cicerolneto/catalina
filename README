@@ -2,6 +2,16 @@
               Catalina - Asynchronous Data Store for GObject
 ----------------------------------------------------------------------------
 
+WARNING
+
+  This library is LGPL-2 but it wraps Berkeley DB which has a very different
+  license.  (Must be open-source to link against).  Therefore, if you link
+  against this library you're code must also be open-source.  I do plan to
+  migrate to a more relaxed data-base backend eventually, but BDB was quick
+  to implement.
+
+END WARNING
+
 I.   Introduction
 II.  
 III. 
