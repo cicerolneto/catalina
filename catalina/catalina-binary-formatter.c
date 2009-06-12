@@ -275,10 +275,11 @@ object_serialize (guchar         type_id,
 	GType         type   = G_VALUE_TYPE (value);
 	GObject      *object = g_value_get_object (value);
 	GParamSpec  **params;
+	gchar        *cursor;
 	const gchar  *type_name;
 	guchar        type_name_len;
 	guint         n_props;
-	gint          i;
+	//gint          i;
 
 	type_name = g_type_name (type);
 
@@ -290,17 +291,25 @@ object_serialize (guchar         type_id,
 		return FALSE;
 	}
 
-	buffer [0] = type_name_len;
-	memcpy (buffer + 1, type_name, type_name_len);
-	buffer = buffer + 1 + type_name_len;
+	cursor = buffer;
 
+	/* the length of the type name */
+	cursor [0] = type_name_len;
+	cursor++;
+
+	/* the object type length */
+	memcpy (cursor, type_name, type_name_len);
+	cursor += type_name_len;
+
+	/* if there are no properties, we can add null sentinal and finish */
 	params = g_object_class_list_properties (G_OBJECT_GET_CLASS (object), &n_props);
 	if (n_props == 0) {
-		buffer [0] = '\0';
+		cursor [0] = '\0';
 		g_free (params);
 		return TRUE;
 	}
 
+	/*
 	for (i = 0; i < n_props; i++) {
 		GTypeSerializer *s;
 		GValue v = {0,};
@@ -323,6 +332,7 @@ object_serialize (guchar         type_id,
 		if (G_VALUE_TYPE (&v) != 0)
 			g_value_unset (&v);
 	}
+	*/
 
 	return TRUE;
 }
@@ -380,7 +390,10 @@ object_deserialize (guchar        type_id,
                     const gchar  *buffer,
                     GError      **error)
 {
-	return TRUE;
+	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+	             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
+	             "No deserialization yet");
+	return FALSE;
 }
 
 static gsize
