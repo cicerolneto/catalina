@@ -32,6 +32,18 @@
  *
  * Provides a #CatalinaTransform implementation that can read and write
  * zlib compressed data.
+ *
+ * The compressed data includes as little as 1 byte and as many as 5 bytes on the tail end of the
+ * compressed data.  The consumer of this will never know however, as the transform hides this
+ * detail.  The last byte is always attached and it is 1 if the stream was compressed and 0 if the
+ * stream was not compressed.  This is important as some data-sets are small enough where
+ * compression does not make sense and actually slows processing down.  You can tune this to your
+ * data-set using the "watermark" property.  The input length must be greater than the watermark to
+ * be compressed.  The default is 0.
+ *
+ * If the data is compressed, the 4 bytes previous to the last byte will contain the length of the
+ * uncompressed buffer.  This is so that we may do a single allocation on decompression to save
+ * ourselves lots of allocations and joining into a single buffer later.
  */
 
 static void catalina_zlib_transform_base_init (CatalinaTransformIface *iface);
