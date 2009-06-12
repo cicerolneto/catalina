@@ -172,7 +172,7 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 	level = ((CatalinaZlibTransform*)transform)->priv->level;
 
 	strm.zalloc = Z_NULL;
-	strm.zfree = Z_NULL;
+	strm.zfree  = Z_NULL;
 	strm.opaque = Z_NULL;
 
 	if ((ret = deflateInit (&strm, level) != Z_OK)) {
@@ -185,21 +185,24 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 	/* compress until end of input */
 	strm.avail_in = input_length;
 	strm.next_in = (guchar*)input;
-	flush = Z_FINISH;
-	
+
 	do {
-		strm.avail_out = CHUNK;
-		strm.next_out = part = g_malloc (CHUNK);
+		do {
+			strm.avail_out = CHUNK;
+			strm.next_out = part = g_malloc (CHUNK);
+			flush = length + CHUNK >= input_length ? Z_FINISH : Z_NO_FLUSH;
 
-		if ((ret = deflate (&strm, flush) == Z_STREAM_ERROR)) {
-			g_free (part);
-			goto cleanup;
-		}
+			if ((ret = deflate (&strm, flush) == Z_STREAM_ERROR)) {
+				g_free (part);
+				goto cleanup;
+			}
 
-		have = CHUNK - strm.avail_out;
-		parts = g_slist_prepend (parts, part);
-		length += have;
-	} while (strm.avail_out == 0);
+			have = CHUNK - strm.avail_out;
+			parts = g_slist_prepend (parts, part);
+			length += have;
+		} while (strm.avail_out == 0);
+	} while (flush != Z_FINISH);
+	g_assert (ret == Z_OK);
 	g_assert (strm.avail_in == 0);
 
 	/* cleanup and finish */
@@ -210,7 +213,7 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 	*output = g_malloc (*output_length);
 	*((gboolean*)(*output + *output_length)) = TRUE;
 	belength = GUINT32_TO_BE (length);
-	memcpy (*output + *output_length - 4, &belength, 4);
+	memcpy (*output + *output_length - 5, &belength, 4);
 
 	/* copy the resulting chunks into the output buffer */
 	parts = g_slist_reverse (parts);
