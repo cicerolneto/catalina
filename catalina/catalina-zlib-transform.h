@@ -34,6 +34,23 @@ G_BEGIN_DECLS
 #define CATALINA_IS_ZLIB_TRANSFORM_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),   CATALINA_TYPE_ZLIB_TRANSFORM))                            
 #define CATALINA_ZLIB_TRANSFORM_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),   CATALINA_TYPE_ZLIB_TRANSFORM, CatalinaZlibTransformClass))
 
+/**
+ * CATALINA_ZLIB_TRANSFORM_ERROR:
+ *
+ * #CatalinaZlibTransform #GError domain.
+ */
+#define CATALINA_ZLIB_TRANSFORM_ERROR (catalina_zlib_transform_error_quark ())
+
+/**
+ * CatalinaZlibTransformError:
+ * @CATALINA_ZLIB_TRANSFORM_ERROR_ZLIB: An error occurred within zlib
+ *
+ * #CatalinaZlibTransform error enumeration.
+ */
+typedef enum {
+	CATALINA_ZLIB_TRANSFORM_ERROR_ZLIB,
+} CatalinaZlibTransformError;
+
 typedef struct _CatalinaZlibTransform        CatalinaZlibTransform;
 typedef struct _CatalinaZlibTransformClass   CatalinaZlibTransformClass;
 typedef struct _CatalinaZlibTransformPrivate CatalinaZlibTransformPrivate;
@@ -51,8 +68,9 @@ struct _CatalinaZlibTransformClass
 	GObjectClass parent_class;
 };
 
-GType              catalina_zlib_transform_get_type (void);
-CatalinaTransform* catalina_zlib_transform_new      (void);
+GType              catalina_zlib_transform_get_type    (void);
+CatalinaTransform* catalina_zlib_transform_new         (void);
+GQuark             catalina_zlib_transform_error_quark (void);
 
 G_END_DECLS
 

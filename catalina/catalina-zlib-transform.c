@@ -18,7 +18,12 @@
  * 02110-1301 USA
  */
 
+#include <string.h>
+#include <zlib.h>
+
 #include "catalina-zlib-transform.h"
+
+#define CHUNK 16384
 
 /**
  * SECTION:catalina-zlib-transform
@@ -40,7 +45,8 @@ G_DEFINE_TYPE_EXTENDED (CatalinaZlibTransform,
 
 struct _CatalinaZlibTransformPrivate
 {
-	gpointer dummy;
+	gsize watermark;
+	guint level;
 };
 
 static void
@@ -98,6 +104,8 @@ catalina_zlib_transform_init (CatalinaZlibTransform *zlib_transform)
 	zlib_transform->priv = G_TYPE_INSTANCE_GET_PRIVATE (zlib_transform,
 	                                                    CATALINA_TYPE_ZLIB_TRANSFORM,
 	                                                    CatalinaZlibTransformPrivate);
+
+	zlib_transform->priv->level = 6;
 }
 
 /**
@@ -133,8 +141,106 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
                                      gsize              *output_length,
                                      GError            **error)
 {
-	*output_length = 0;
-	return TRUE;
+	int       ret,
+		  flush;
+	gulong    have;
+	z_stream  strm;
+	gint      level;
+	GSList   *parts    = NULL,
+		 *iter;
+	gpointer  part;
+	guint     watermark,
+	          length   = 0,
+	          belength = 0,
+	          offset   = 0;
+	gboolean  success  = FALSE;
+
+	g_return_val_if_fail (output != NULL, FALSE);
+	g_return_val_if_fail (output_length != NULL, FALSE);
+	
+	watermark = ((CatalinaZlibTransform*)transform)->priv->watermark;
+
+	/* only compress if the input buffer is large enough */
+	if (input_length <= watermark) {
+		*output = g_malloc0 (input_length + 1);
+		memcpy (*output, input, input_length);
+		*output [input_length] = FALSE;
+		return TRUE;
+	}
+
+	/* get the zlib compression level */
+	level = ((CatalinaZlibTransform*)transform)->priv->level;
+
+	strm.zalloc = Z_NULL;
+	strm.zfree = Z_NULL;
+	strm.opaque = Z_NULL;
+
+	if ((ret = deflateInit (&strm, level) != Z_OK)) {
+		g_set_error (error, CATALINA_ZLIB_TRANSFORM_ERROR,
+		             CATALINA_ZLIB_TRANSFORM_ERROR_ZLIB,
+		             "There was an error initializing Zlib");
+		return FALSE;
+	}
+
+	/* compress until end of input */
+	strm.avail_in = input_length;
+	strm.next_in = (guchar*)input;
+	flush = Z_FINISH;
+	
+	do {
+		strm.avail_out = CHUNK;
+		strm.next_out = part = g_malloc (CHUNK);
+
+		if ((ret = deflate (&strm, flush) == Z_STREAM_ERROR)) {
+			g_free (part);
+			goto cleanup;
+		}
+
+		have = CHUNK - strm.avail_out;
+		parts = g_slist_prepend (parts, part);
+		length += have;
+	} while (strm.avail_out == 0);
+	g_assert (strm.avail_in == 0);
+
+	/* cleanup and finish */
+	(void)deflateEnd(&strm);
+
+	/* create the output buffer (COMPRESSED(N) + ULEN(4) + WAS_COMPRESSED(1) */
+	*output_length = length + 5;
+	*output = g_malloc (*output_length);
+	*((gboolean*)(*output + *output_length)) = TRUE;
+	belength = GUINT32_TO_BE (length);
+	memcpy (*output + *output_length - 4, &belength, 4);
+
+	/* copy the resulting chunks into the output buffer */
+	parts = g_slist_reverse (parts);
+	for (iter = parts; iter; iter = iter->next) {
+		if (length <= CHUNK) {
+			memcpy (*output, iter->data, length);
+			break;
+		}
+		
+		have = length - offset;
+		if (have > CHUNK)
+			have = CHUNK;
+
+		memcpy ((*output + offset), iter->data, have);
+		offset += have;
+		g_free (iter->data);
+	}
+
+	success = TRUE;
+
+cleanup:
+	g_slist_free (parts);
+
+	if (!success) {
+		g_set_error (error, CATALINA_ZLIB_TRANSFORM_ERROR,
+		             CATALINA_ZLIB_TRANSFORM_ERROR_ZLIB,
+		             "There was an internal error within zlib during compression");
+	}
+
+	return success;
 }
 
 static void
@@ -142,4 +248,10 @@ catalina_zlib_transform_base_init (CatalinaTransformIface *iface)
 {
 	iface->read = catalina_zlib_transform_real_read;
 	iface->write = catalina_zlib_transform_real_write;
+}
+
+GQuark
+catalina_zlib_transform_error_quark (void)
+{
+	return g_quark_from_static_string ("catalina-zlib-transform-error-quark");
 }
