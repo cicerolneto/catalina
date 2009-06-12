@@ -19,6 +19,8 @@ config.h.in
 config.log
 config.status
 config.sub
+config.guess.cdbs-orig
+config.sub.cdbs-orig
 configure
 INSTALL
 aclocal.m4
