@@ -129,7 +129,56 @@ catalina_zlib_transform_real_read  (CatalinaTransform  *transform,
                                     gsize              *output_length,
                                     GError            **error)
 {
-	*output_length = 0;
+	int        ret;
+	z_stream   strm;
+	guint      length;
+
+	g_return_val_if_fail (output != NULL, FALSE);
+	g_return_val_if_fail (output_length != NULL, FALSE);
+
+	/* allocate inflate state */
+	strm.zalloc = Z_NULL;
+	strm.zfree = Z_NULL;
+	strm.opaque = Z_NULL;
+	strm.avail_in = 0;
+	strm.next_in = Z_NULL;
+
+	/* if the last byte is 0 (FALSE) then the buffer was not compressed and we can
+	 * simply copy the buffer -1 byte.  We chould probably take a shortcut here and
+	 * just set *output_length = 0 since most stuff will be strings or ignore the
+	 * essentially null pad at the end, but for now to be sure we will not.
+	 */
+	if (input [input_length - 1] == '\0') {
+		*output_length = input_length - 1;
+		*output = g_malloc (*output_length);
+		memcpy (*output, input, *output_length);
+		return TRUE;
+	}
+
+	if ((ret = inflateInit(&strm)) != Z_OK) {
+		g_set_error (error, CATALINA_ZLIB_TRANSFORM_ERROR,
+		             CATALINA_ZLIB_TRANSFORM_ERROR_ZLIB,
+		             "There was an error initializing Zlib");
+		return FALSE;
+	}
+
+	memcpy (&length, input + input_length - 5, 4);
+	length = GUINT32_FROM_BE (length);
+	*output = g_malloc (length);
+
+	/* we ignore  the length and was-compressed flag */
+	strm.avail_in = input_length - 5;
+	strm.next_in = (guchar*)input;
+	strm.avail_out = length;
+	strm.next_out = (guchar*)*output;
+
+	if ((ret = inflate (&strm, 0)) != Z_STREAM_END) {
+		g_error ("Did not get Z_STREAM_END, %d ... %d", ret, Z_STREAM_ERROR);
+	}
+
+	(void)inflateEnd(&strm);
+
+	*output_length = length;
 	return TRUE;
 }
 
