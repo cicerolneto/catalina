@@ -59,6 +59,9 @@ AC_SUBST(CATALINA_LIBS)
 
 AM_CONDITIONAL(ENABLE_GLIB_TEST, test "x$enable_glibtest" = "xyes")
 
+CHECK_ZLIB()
+AM_CONDITIONAL(HAVE_LIBZ, test "x$zlib_cv_libz" = "xyes")
+
 AX_PATH_BDB([4.6],[
 	LIBS="$BDB_LIBS"
 	LDFLAGS="$BDB_LDFLAGS $LDFLAGS"

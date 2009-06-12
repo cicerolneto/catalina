@@ -7,7 +7,6 @@ sources_public_h =						\
 	$(top_srcdir)/catalina/catalina-formatter.h		\
 	$(top_srcdir)/catalina/catalina-binary-formatter.h	\
 	$(top_srcdir)/catalina/catalina-transform.h		\
-	$(top_srcdir)/catalina/catalina-zlib-transform.h	\
 	$(NULL)
 
 sources_private_h =						\
@@ -18,7 +17,6 @@ sources_c = 							\
 	catalina-formatter.c					\
 	catalina-binary-formatter.c				\
 	catalina-transform.c					\
-	catalina-zlib-transform.c				\
 	$(NULL)
 
 catalinaincludedir = $(includedir)/catalina-$(CATALINA_API_VERSION)/catalina
@@ -56,6 +54,12 @@ libcatalina_@CATALINA_API_VERSION@_la_LDFLAGS =		\
 	$(NULL)
 
 libcatalina_@CATALINA_API_VERSION@_la_LIBADD = $(CATALINA_LIBS)
+
+if HAVE_LIBZ
+sources_public_h += $(top_srcdir)/catalina/catalina-zlib-transform.h
+sources_c += catalina-zlib-transform.c
+libcatalina_@CATALINA_API_VERSION@_la_LIBADD += -lz
+endif
 
 DISTCLEANFILES = catalina-version.h
 EXTRA_DIST = catalina-version.h.in
