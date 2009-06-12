@@ -1,7 +1,9 @@
 #include <catalina/catalina.h>
 #include <iris/iris.h>
 #include <string.h>
+
 #include "async-test.h"
+#include "mocks/mock-person.h"
 
 #define TEST_KEY  "test-key"
 #define TEST_DATA "test-data"
@@ -276,6 +278,44 @@ test18 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test19 (void)
+{
+	GError *error = NULL;
+	MockPerson *person = mock_person_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (person,
+	              "first-name", "Christian",
+	              "last-name",  "Hergert",
+	              "birth-date", "August 16th, 1984",
+	              NULL);
+	GValue v1 = {0,}, v2 = {0,};
+	g_value_init (&v1, MOCK_TYPE_PERSON);
+	g_value_set_object (&v1, person);
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	if (!catalina_storage_set_value (storage, "mock-person", -1, &v1, &error))
+		g_error ("%s", error->message);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test20 (void)
+{
+	GError *error = NULL;
+	GType mtype = MOCK_TYPE_PERSON; // until we get symbol lookup
+	GValue v = {0,};
+	MockPerson *person = NULL;
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	if (!catalina_storage_get_value (storage, "mock-person", -1, &v, &error))
+		g_error ("%s", error->message);
+	g_assert (catalina_storage_close (storage, NULL));
+	g_assert_cmpstr (mock_person_get_first_name (person),==,"Christian");
+	g_assert_cmpstr (mock_person_get_last_name (person),==,"Hergert");
+	g_assert_cmpstr (mock_person_get_birth_date (person),==,"August 16th, 1984");
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -306,7 +346,9 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/set_value_async(1)", test16);
 	g_test_add_func ("/CatalinaStorage/get_value_async(1)", test15);
 	g_test_add_func ("/CatalinaStorage/set_value(1)", test17);
+	g_test_add_func ("/CatalinaStorage/set_value(2)", test19);
 	g_test_add_func ("/CatalinaStorage/get_value(1)", test18);
+	g_test_add_func ("/CatalinaStorage/get_value(2)", test20);
 
 	return g_test_run ();
 }
