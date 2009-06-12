@@ -36,5 +36,6 @@ libcatalina-1.0.so.0 libcatalina-1.0-0 #MINVER#
  catalina_transform_get_type@Base 0.1.0-0
  catalina_transform_read@Base 0.1.0-0
  catalina_transform_write@Base 0.1.0-0
+ catalina_zlib_transform_error_quark@Base 0.1.0-0
  catalina_zlib_transform_get_type@Base 0.1.0-0
  catalina_zlib_transform_new@Base 0.1.0-0
