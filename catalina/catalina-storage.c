@@ -1575,7 +1575,7 @@ handle_set (CatalinaStorage *storage,
 
 	if (priv->transform) {
 		if (!catalina_transform_write (priv->transform,
-		                               task->key, task->key_length,
+		                               task->data, task->data_length,
 		                               &buffer, &buffer_length,
 		                               &task->error))
 		{
