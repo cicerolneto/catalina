@@ -209,7 +209,7 @@ object_get_length (guchar        type_id,
 	params = g_object_class_list_properties (G_OBJECT_GET_CLASS (object), &n_props);
 	if (n_props == 0) {
 		g_free (params);
-		total += 1;
+		total += 1; // NULL sentinal
 		return total;
 	}
 
@@ -217,11 +217,17 @@ object_get_length (guchar        type_id,
 		GTypeSerializer *s;
 		GValue v = {0,};
 		if ((s = get_serializer_for_gtype (G_PARAM_SPEC_VALUE_TYPE (params [i]))) != NULL) {
+			// prop_name_len(1) + prop_name(N)
 			total += 1 + strlen (g_param_spec_get_name (params [i])) + 1;
+			// prop_value_len(4) + prop_value(N)
+			g_value_init (&v, params [i]->value_type);
 			g_object_get_property (object, g_param_spec_get_name (params [i]), &v);
-			total += 1 + s->get_length (s->type_id, &v);
+			total += 4 + s->get_length (s->type_id, &v);
 		}
+		g_value_unset (&v);
 	}
+
+	total += 1; // NULL sentinal
 
 	return total;
 }
