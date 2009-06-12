@@ -1,7 +1,7 @@
 #include <catalina/catalina.h>
 #include <iris/iris.h>
 #include <string.h>
-#include "long-test-data.h"
+#include "mocks/long-test-data.h"
 
 #define TEST_KEY_STRING  "this is the zlib test key"
 #define TEST_DATA_STRING "this is some longer bit of text for test data"
