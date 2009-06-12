@@ -190,8 +190,7 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
                                      gsize              *output_length,
                                      GError            **error)
 {
-	int       ret,
-		  flush;
+	int       ret;
 	gulong    have;
 	z_stream  strm;
 	gint      level;
@@ -236,21 +235,18 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 	strm.next_in = (guchar*)input;
 
 	do {
-		do {
-			strm.avail_out = CHUNK;
-			strm.next_out = part = g_malloc (CHUNK);
-			flush = length + CHUNK >= input_length ? Z_FINISH : Z_NO_FLUSH;
+		strm.avail_out = CHUNK;
+		strm.next_out = part = g_malloc (CHUNK);
 
-			if ((ret = deflate (&strm, flush) == Z_STREAM_ERROR)) {
-				g_free (part);
-				goto cleanup;
-			}
+		if ((ret = deflate (&strm, Z_FINISH) == Z_STREAM_ERROR)) {
+			g_free (part);
+			goto cleanup;
+		}
 
-			have = CHUNK - strm.avail_out;
-			parts = g_slist_prepend (parts, part);
-			length += have;
-		} while (strm.avail_out == 0);
-	} while (flush != Z_FINISH);
+		have = CHUNK - strm.avail_out;
+		parts = g_slist_prepend (parts, part);
+		length += have;
+	} while (strm.avail_out == 0);
 	g_assert (ret == Z_OK);
 	g_assert (strm.avail_in == 0);
 
