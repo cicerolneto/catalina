@@ -164,7 +164,7 @@ get_serializer_for_gtype (GType type)
 
 	while (g_hash_table_iter_next (&iter, &key, &value)) {
 		s = value;
-		if (s != NULL && ((s->g_type == type) || g_type_is_a (s->g_type, type)))
+		if (s != NULL && ((s->g_type == type) || g_type_is_a (type, s->g_type)))
 			return s;
 	}
 
