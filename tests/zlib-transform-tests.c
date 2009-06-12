@@ -1,6 +1,7 @@
 #include <catalina/catalina.h>
 #include <iris/iris.h>
 #include <string.h>
+#include "long-test-data.h"
 
 #define TEST_KEY_STRING  "this is the zlib test key"
 #define TEST_DATA_STRING "this is some longer bit of text for test data"
@@ -27,6 +28,20 @@ test2 (void)
 	g_assert_cmpstr (outbuf,==,TEST_DATA_STRING);
 }
 
+static void
+test3 (void)
+{
+	gchar *outbuf = NULL;
+	gsize  outlen = 0;
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
+	g_assert (catalina_storage_set (storage, LONG_TEST_KEY, -1, LONG_TEST_DATA, -1, NULL));
+	g_assert (catalina_storage_get (storage, LONG_TEST_KEY, -1, &outbuf, &outlen, NULL));
+	g_assert_cmpint (outlen,==,strlen (LONG_TEST_DATA) + 1);
+	g_assert_cmpstr (outbuf,==,LONG_TEST_DATA);
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -37,6 +52,7 @@ main (gint   argc,
 
 	g_test_add_func ("/CatalinaZlibTransform/new(1)", test1);
 	g_test_add_func ("/CatalinaZlibTransform/read-write(1)", test2);
+	g_test_add_func ("/CatalinaZlibTransform/read-write(2)", test3);
 
 	return g_test_run ();
 }
