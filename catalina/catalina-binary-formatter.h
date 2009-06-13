@@ -44,11 +44,13 @@ G_BEGIN_DECLS
 /**
  * CatalinaBinaryFormatterError:
  * @CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE: The formatter could not determine how to format the rquested GType.
+ * @CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA: The data within the buffer was invalid.
  *
  * #CatalinaBinaryFormatter error enumeration.
  */
 typedef enum {
 	CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
+	CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
 } CatalinaBinaryFormatterError;
 
 typedef struct _CatalinaBinaryFormatter        CatalinaBinaryFormatter;
