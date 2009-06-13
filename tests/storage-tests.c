@@ -307,9 +307,11 @@ test20 (void)
 	GValue v = {0,};
 	MockPerson *person = NULL;
 	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
 	if (!catalina_storage_get_value (storage, "mock-person", -1, &v, &error))
 		g_error ("%s", error->message);
+	person = g_value_get_object (&v);
 	g_assert (catalina_storage_close (storage, NULL));
 	g_assert_cmpstr (mock_person_get_first_name (person),==,"Christian");
 	g_assert_cmpstr (mock_person_get_last_name (person),==,"Hergert");
