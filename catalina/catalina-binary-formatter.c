@@ -217,12 +217,12 @@ object_get_length (guchar        type_id,
 		GTypeSerializer *s;
 		GValue v = {0,};
 		if ((s = get_serializer_for_gtype (G_PARAM_SPEC_VALUE_TYPE (params [i]))) != NULL) {
-			// prop_name_len(1) + prop_name(N)
+			// prop_name_len(1) + prop_name(N+NULL)
 			total += 1 + strlen (g_param_spec_get_name (params [i])) + 1;
-			// prop_value_len(4) + prop_value(N)
+			// prop_type(1) + prop_value_len(4) + prop_value(N)
 			g_value_init (&v, params [i]->value_type);
 			g_object_get_property (object, g_param_spec_get_name (params [i]), &v);
-			total += 4 + s->get_length (s->type_id, &v);
+			total += 1 + 4 + s->get_length (s->type_id, &v);
 		}
 		g_value_unset (&v);
 	}
@@ -279,7 +279,7 @@ object_serialize (guchar         type_id,
 	const gchar  *type_name;
 	guchar        type_name_len;
 	guint         n_props;
-	//gint          i;
+	gint          i;
 
 	type_name = g_type_name (type);
 
@@ -309,30 +309,42 @@ object_serialize (guchar         type_id,
 		return TRUE;
 	}
 
-	/*
 	for (i = 0; i < n_props; i++) {
 		GTypeSerializer *s;
 		GValue v = {0,};
 		if ((s = get_serializer_for_gtype (G_PARAM_SPEC_VALUE_TYPE (params [i]))) != NULL) {
 			type_name = g_param_spec_get_name (params [i]);
 			type_name_len = strlen (type_name) + 1;
+
 			if (type_name_len >= 0xFF)
 				goto next_item;
-			buffer [0] = type_name_len;
+
+			cursor [0] = type_name_len;
+			cursor++;
+			memcpy (cursor + 1, &type_name, type_name_len);
+			cursor += type_name_len;
+
+			cursor [0] = s->type_id;
+			cursor++;
+
+			g_value_init (&v, G_PARAM_SPEC_VALUE_TYPE (params [i]));
 			g_object_get_property (object, type_name, &v);
-			memcpy (buffer + 1, &type_name, type_name_len);
-			buffer = buffer + 1 + type_name_len;
-			if (!s->serialize (s->type_id, value, buffer, error)) {
-				if (v.g_type)
-					g_value_unset (&v);
+
+			guint prop_length = s->get_length (s->type_id, &v);
+			guint be_prop_length = GUINT32_TO_BE (prop_length);
+			memcpy (cursor, &be_prop_length, 4);
+			cursor += 4;
+
+			if (!s->serialize (s->type_id, &v, cursor, error)) {
+				g_value_unset (&v);
 				return FALSE;
 			}
+
+			cursor += prop_length;
 		}
 	next_item:
-		if (G_VALUE_TYPE (&v) != 0)
-			g_value_unset (&v);
+		g_value_unset (&v);
 	}
-	*/
 
 	return TRUE;
 }
@@ -390,17 +402,27 @@ object_deserialize (guchar        type_id,
                     const gchar  *buffer,
                     GError      **error)
 {
-	guchar   type_name_len = 0;
-	gchar   *type_name     = NULL;
-	GType    type          = G_TYPE_INVALID;
-	GObject *object        = NULL;
+	const gchar *cursor;
+	guchar       type_name_len = 0,
+	             prop_name_len = 0;
+	gchar       *type_name     = NULL,
+	            *prop_name     = NULL;
+	guchar       prop_type     = 0;
+	GType        type          = G_TYPE_INVALID;
+	GObject     *object        = NULL;
+	guint        length        = 0;
 
 	g_return_val_if_fail (value != NULL, FALSE);
 	g_return_val_if_fail (buffer != NULL, FALSE);
 
+	cursor = buffer;
+
 	/* get the type name */
-	type_name_len = (guchar)buffer [0];
-	type_name = g_strdup (buffer + 1);
+
+	type_name_len = (guchar)cursor [0];
+	cursor++;
+
+	type_name = g_strdup (cursor);
 	if (strlen (type_name) >= 255) {
 		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
 		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
@@ -414,17 +436,60 @@ object_deserialize (guchar        type_id,
 		/* try to lookup the symbol */
 	}
 
+	g_free (type_name);
+	type_name = NULL;
+
 	/* verify the type derives G_TYPE_OBJECT */
 	if (!g_type_is_a (type, G_TYPE_OBJECT)) {
 		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
 		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
 		             "Got something other than an Object GType");
-		g_free (type_name);
 		return FALSE;
 	}
 
 	/* create an instance of the object */
 	object = g_object_new (type, NULL);
+
+	/* setup cursor at first position after type info */
+	cursor = buffer + 1 + type_name_len;
+
+	while (cursor [0] != '\0') {
+		/* get the prop name length */
+		prop_name_len = cursor [0];
+		cursor++;
+
+		/* get the prop name */
+		prop_name = g_strdup (cursor + 1);
+		if (strlen (prop_name) + 1 != prop_name_len) {
+			g_free (prop_name);
+			goto error;
+		}
+		cursor += prop_name_len;
+
+		/* get the type of the property data */
+		prop_type = cursor [0];
+		cursor++;
+
+		/* get the length of the property data */
+		memcpy (&length, cursor, 4);
+		length = GUINT32_FROM_BE (length);
+		cursor += 4;
+
+		GTypeSerializer *s = get_serializer_for_type_id (prop_type);
+		GValue v = {0,};
+		if (!s) {
+			g_free (prop_name);
+			goto error;
+		}
+
+		if (!s->deserialize (prop_type, &v, cursor, error)) {
+			g_free (prop_name);
+			goto error;
+		}
+
+		cursor += length;
+		g_object_set_property (object, prop_name, &v);
+	}
 
 	g_value_unset (value);
 	g_value_init (value, type);
@@ -432,12 +497,14 @@ object_deserialize (guchar        type_id,
 
 	return TRUE;
 
-	/*
+error:
+	g_value_unset (value);
+	if (object)
+		g_object_unref (object);
 	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-	             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
-	             "No deserialization yet");
+	             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
+	             "Got invalid data within serialized object");
 	return FALSE;
-	*/
 }
 
 static gsize
@@ -486,7 +553,7 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
 	if ((stream_length = get_buffer_length (value)) == 0) {
 		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
 		             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
-		             "Do not know how to format type \"%s\"",
+		             "Do not know how to serialize type \"%s\"",
 		             g_type_name (G_VALUE_TYPE (value)));
 		return FALSE;
 	}
@@ -519,6 +586,10 @@ read_value (guchar        type_id,
 		return s->deserialize (s->type_id, value, buffer, error);
 	}
 
+	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+	             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
+	             "Do not know how to deserialize type %d", type_id);
+
 	return FALSE;
 }
 
@@ -537,14 +608,7 @@ catalina_binary_formatter_real_deserialize (CatalinaFormatter  *formatter,
 
 	type_id = buffer [0];
 
-	if (read_value (type_id, (gchar*)buffer + 1, value, error))
-		return TRUE;
-
-	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-	             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
-	             "Do not know how to deserialize type %d", type_id);
-
-	return FALSE;
+	return read_value (type_id, (gchar*)buffer + 1, value, error);
 }
 
 static void
