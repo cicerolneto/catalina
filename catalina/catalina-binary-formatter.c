@@ -390,10 +390,54 @@ object_deserialize (guchar        type_id,
                     const gchar  *buffer,
                     GError      **error)
 {
+	guchar   type_name_len = 0;
+	gchar   *type_name     = NULL;
+	GType    type          = G_TYPE_INVALID;
+	GObject *object        = NULL;
+
+	g_return_val_if_fail (value != NULL, FALSE);
+	g_return_val_if_fail (buffer != NULL, FALSE);
+
+	/* get the type name */
+	type_name_len = (guchar)buffer [0];
+	type_name = g_strdup (buffer + 1);
+	if (strlen (type_name) >= 255) {
+		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
+		             "The data within the buffer was invalid");
+		g_free (type_name);
+		return FALSE;
+	}
+
+	/* lookup the type and create an instance */
+	if (G_UNLIKELY ((type = g_type_from_name (type_name)) == G_TYPE_INVALID)) {
+		/* try to lookup the symbol */
+	}
+
+	/* verify the type derives G_TYPE_OBJECT */
+	if (!g_type_is_a (type, G_TYPE_OBJECT)) {
+		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
+		             "Got something other than an Object GType");
+		g_free (type_name);
+		return FALSE;
+	}
+
+	/* create an instance of the object */
+	object = g_object_new (type, NULL);
+
+	g_value_unset (value);
+	g_value_init (value, type);
+	g_value_set_object (value, object);
+
+	return TRUE;
+
+	/*
 	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
 	             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
 	             "No deserialization yet");
 	return FALSE;
+	*/
 }
 
 static gsize
