@@ -939,7 +939,7 @@ catalina_storage_get_value_async_cb (CatalinaStorage *storage,
 	if (!priv->formatter) {
 		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 		             CATALINA_STORAGE_ERROR_STATE,
-		             "Instance missing formatter for deserialization");
+		             "CatalinaStorage is missing a formatter for deserialization");
 		goto failure;
 	}
 
@@ -1078,7 +1078,7 @@ catalina_storage_get_value (CatalinaStorage  *storage,
 	if (!priv->formatter) {
 		g_set_error (error, CATALINA_STORAGE_ERROR,
 		             CATALINA_STORAGE_ERROR_STATE,
-		             "Instance missing formatter for deserialization");
+		             "CatalinaStorage is missing a formatter for deserialization");
 		return FALSE;
 	}
 
