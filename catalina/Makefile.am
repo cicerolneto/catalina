@@ -10,6 +10,7 @@ sources_public_h =						\
 	$(NULL)
 
 sources_private_h =						\
+	catalina-storage-private.h				\
 	$(NULL)
 
 sources_c = 							\
