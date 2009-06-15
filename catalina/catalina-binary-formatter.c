@@ -1443,7 +1443,9 @@ catalina_binary_formatter_write_value (CatalinaBinaryFormatter *formatter,
  * @buffer_length: the length of @buffer
  * @error: a location for a #GError or %NULL
  *
- * d
+ * Attempts to determine the data-type stored within the buffer and
+ * deserializes it.  The resulting deserialized value is stored within
+ * @value.
  *
  * Upon error, %FALSE is returned and @error is set.
  *
