@@ -210,7 +210,7 @@ catalina_binary_formatter_write_boolean (CatalinaBinaryFormatter *formatter,
 	g_return_val_if_fail (buffer != NULL, FALSE);
 	g_return_val_if_fail (buffer_length != NULL, FALSE);
 
-	*buffer = g_malloc (2);
+	*buffer = g_malloc0 (2);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_BOOLEAN;
 	(*buffer) [1] = (guchar)value;
 	*buffer_length = 2;
@@ -271,7 +271,7 @@ catalina_binary_formatter_write_char (CatalinaBinaryFormatter *formatter,
 	g_return_val_if_fail (buffer != NULL, FALSE);
 	g_return_val_if_fail (buffer_length != NULL, FALSE);
 
-	*buffer = g_malloc (2);
+	*buffer = g_malloc0 (2);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_CHAR;
 	(*buffer) [1] = (guchar)value;
 	*buffer_length = 2;
@@ -332,7 +332,7 @@ catalina_binary_formatter_write_uchar (CatalinaBinaryFormatter *formatter,
 	g_return_val_if_fail (buffer != NULL, FALSE);
 	g_return_val_if_fail (buffer_length != NULL, FALSE);
 
-	*buffer = g_malloc (2);
+	*buffer = g_malloc0 (2);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_UCHAR;
 	(*buffer) [1] = (guchar)value;
 	*buffer_length = 2;
@@ -397,7 +397,7 @@ catalina_binary_formatter_write_short (CatalinaBinaryFormatter *formatter,
 
 	be_value = GINT16_TO_BE (value);
 
-	*buffer = g_malloc (3);
+	*buffer = g_malloc0 (3);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_SHORT;
 	memcpy ((*buffer) + 1, &be_value, 2);
 	*buffer_length = 3;
@@ -466,7 +466,7 @@ catalina_binary_formatter_write_ushort (CatalinaBinaryFormatter *formatter,
 
 	be_value = GUINT16_TO_BE (value);
 
-	*buffer = g_malloc (3);
+	*buffer = g_malloc0 (3);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_USHORT;
 	memcpy ((*buffer) + 1, &be_value, 2);
 	*buffer_length = 3;
@@ -535,7 +535,7 @@ catalina_binary_formatter_write_int (CatalinaBinaryFormatter *formatter,
 
 	be_value = GINT32_TO_BE (value);
 
-	*buffer = g_malloc (5);
+	*buffer = g_malloc0 (5);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_INT;
 	memcpy ((*buffer) + 1, &be_value, 4);
 	*buffer_length = 5;
@@ -604,7 +604,7 @@ catalina_binary_formatter_write_uint (CatalinaBinaryFormatter *formatter,
 
 	be_value = GUINT32_TO_BE (value);
 
-	*buffer = g_malloc (5);
+	*buffer = g_malloc0 (5);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_UINT;
 	memcpy ((*buffer) + 1, &be_value, 4);
 	*buffer_length = 5;
@@ -673,7 +673,7 @@ catalina_binary_formatter_write_long (CatalinaBinaryFormatter *formatter,
 
 	be_value = GLONG_TO_BE (value);
 
-	*buffer = g_malloc (9);
+	*buffer = g_malloc0 (9);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_LONG;
 	memcpy ((*buffer) + 1, &be_value, 8);
 	*buffer_length = 9;
@@ -742,7 +742,7 @@ catalina_binary_formatter_write_ulong (CatalinaBinaryFormatter *formatter,
 
 	be_value = GULONG_TO_BE (value);
 
-	*buffer = g_malloc (9);
+	*buffer = g_malloc0 (9);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_ULONG;
 	memcpy ((*buffer) + 1, &be_value, 8);
 	*buffer_length = 9;
@@ -811,7 +811,7 @@ catalina_binary_formatter_write_int64 (CatalinaBinaryFormatter *formatter,
 
 	be_value = GINT64_TO_BE (value);
 
-	*buffer = g_malloc (9);
+	*buffer = g_malloc0 (9);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_INT64;
 	memcpy ((*buffer) + 1, &be_value, 8);
 	*buffer_length = 9;
@@ -880,7 +880,7 @@ catalina_binary_formatter_write_uint64 (CatalinaBinaryFormatter *formatter,
 
 	be_value = GUINT64_TO_BE (value);
 
-	*buffer = g_malloc (9);
+	*buffer = g_malloc0 (9);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_UINT64;
 	memcpy ((*buffer) + 1, &be_value, 8);
 	*buffer_length = 9;
@@ -1004,7 +1004,7 @@ catalina_binary_formatter_read_string (CatalinaBinaryFormatter  *formatter,
 		return FALSE;
 	}
 
-	*value = g_malloc (length);
+	*value = g_malloc0 (length);
 	memcpy (*value, buffer + 5, length);
 
 	if (value_length)
@@ -1232,7 +1232,7 @@ catalina_binary_formatter_write_object (CatalinaBinaryFormatter  *formatter,
 	type_name_len = strlen (type_name) + 1;
 
 	header_length = 1 + 1 + type_name_len;
-	header = g_malloc (header_length);
+	header = g_malloc0 (header_length);
 	header [0] = (gchar)BINARY_FORMATTER_TYPE_OBJECT;
 	header [1] = (gchar)type_name_len;
 	memcpy (header + 2, type_name, type_name_len);
@@ -1274,7 +1274,7 @@ catalina_binary_formatter_write_object (CatalinaBinaryFormatter  *formatter,
 	total += 1;
 
 	*buffer_length = total;
-	*buffer = g_malloc (total);
+	*buffer = g_malloc0 (total);
 	memcpy (*buffer, header, header_length);
 	g_free (header);
 
@@ -1332,7 +1332,7 @@ catalina_binary_formatter_read_object (CatalinaBinaryFormatter  *formatter,
 		return FALSE;
 
 	type_name_len = (guchar)buffer [1];
-	type_name = g_malloc (type_name_len);
+	type_name = g_malloc0 (type_name_len);
 	memcpy (type_name, buffer + 2, type_name_len);
 	type = g_type_from_name (type_name);
 	g_free (type_name);
@@ -1348,7 +1348,7 @@ catalina_binary_formatter_read_object (CatalinaBinaryFormatter  *formatter,
 		GValue v = {0,};
 		guchar prop_name_len = (guchar)cursor [0];
 		cursor++;
-		gchar *prop_name = g_malloc (prop_name_len);
+		gchar *prop_name = g_malloc0 (prop_name_len);
 		memcpy (prop_name, cursor, prop_name_len);
 		cursor += prop_name_len;
 
@@ -1359,6 +1359,8 @@ catalina_binary_formatter_read_object (CatalinaBinaryFormatter  *formatter,
 
 		if (!catalina_binary_formatter_read_value (formatter, &v, cursor, prop_value_len, error)) {
 			/* FIXME: error handling */
+			g_debug ("Prop name: %s", prop_name);
+			g_error ("blah");
 			g_debug ("Uh, error reading value (type_id %d)", cursor [0]);
 		}
 
@@ -1559,9 +1561,10 @@ catalina_binary_formatter_read_value (CatalinaBinaryFormatter  *formatter,
 	else if (type_id == BINARY_FORMATTER_TYPE_OBJECT) {
 		GObject *v = NULL;
 		success = catalina_binary_formatter_read_object (formatter, &v, buffer, buffer_length, error);
-		g_value_init (value, G_TYPE_OBJECT);
-		if (v)
+		if (v) {
+			g_value_init (value, G_TYPE_FROM_INSTANCE (v));
 			g_value_take_object (value, v);
+		}
 	}
 	else {
 		/*
