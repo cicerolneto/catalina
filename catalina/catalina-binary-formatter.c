@@ -18,9 +18,20 @@
  * 02110-1301 USA
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#define _ISOC99_SOURCE
+
+#include <errno.h>
+#include <float.h>
 #include <string.h>
+#include <stdlib.h>
+#include <math.h>
 
 #include "catalina-binary-formatter.h"
+#include "catalina-binary-formatter-private.h"
 
 /**
  * SECTION:catalina-binary-formatter
@@ -32,10 +43,6 @@
  */
 
 static void catalina_binary_formatter_base_init (CatalinaFormatterIface *iface);
-static void g_type_serializer_init              (void);
-
-static GHashTable *type_id_funcs = NULL;
-static GHashTable *type_funcs    = NULL;
 
 G_DEFINE_TYPE_EXTENDED (CatalinaBinaryFormatter,
                         catalina_binary_formatter,
@@ -44,10 +51,38 @@ G_DEFINE_TYPE_EXTENDED (CatalinaBinaryFormatter,
                         G_IMPLEMENT_INTERFACE (CATALINA_TYPE_FORMATTER,
                                                catalina_binary_formatter_base_init))
 
-struct _CatalinaBinaryFormatterPrivate
+typedef struct {
+	gchar *key;
+	guint  key_length;
+	gchar *value;
+	guint  value_length;
+} Chunk;
+
+static gboolean
+can_serialize_type (GType type)
 {
-	gpointer dummy;
-};
+	if (type == G_TYPE_NONE)
+		return FALSE;
+	else if (g_type_is_a (type, G_TYPE_OBJECT)) {
+		return TRUE;
+	}
+	else if (type == G_TYPE_STRING)
+		return TRUE;
+	else if (type == G_TYPE_INT || type == G_TYPE_UINT)
+		return TRUE;
+	else if (type == G_TYPE_INT64 || type == G_TYPE_UINT64)
+		return TRUE;
+	else if (type == G_TYPE_LONG || type == G_TYPE_ULONG)
+		return TRUE;
+	else if (type == G_TYPE_DOUBLE || type == G_TYPE_FLOAT)
+		return TRUE;
+	else if (type == G_TYPE_CHAR || type == G_TYPE_UCHAR)
+		return TRUE;
+	else if (type == G_TYPE_BOOLEAN)
+		return TRUE;
+	else
+		return FALSE;
+}
 
 static void
 catalina_binary_formatter_get_property (GObject    *object,
@@ -96,8 +131,6 @@ catalina_binary_formatter_class_init (CatalinaBinaryFormatterClass *klass)
 	object_class->get_property = catalina_binary_formatter_get_property;
 	object_class->finalize     = catalina_binary_formatter_finalize;
 	object_class->dispose      = catalina_binary_formatter_dispose;
-
-	g_type_serializer_init ();
 }
 
 static void
@@ -108,434 +141,6 @@ catalina_binary_formatter_init (CatalinaBinaryFormatter *binary_formatter)
 	                                                      CatalinaBinaryFormatterPrivate);
 }
 
-/**
- * catalina_binary_formatter_new:
- *
- * Creates a new instance of the binary formatter.
- *
- * Return value: the newly created #CatalinaBinaryFormatter instance
- */
-CatalinaFormatter*
-catalina_binary_formatter_new (void)
-{
-	return g_object_new (CATALINA_TYPE_BINARY_FORMATTER, NULL);
-}
-
-typedef struct
-{
-	guchar   type_id;
-	GType    g_type;
-	gsize    (*get_length)  (guchar type_id, const GValue *value);
-	gboolean (*serialize)   (guchar type_id, const GValue *value,       gchar *buffer, GError **error);
-	gboolean (*deserialize) (guchar type_id,       GValue *value, const gchar *buffer, GError **error);
-} GTypeSerializer;
-
-static gsize
-int_get_length (guchar        type_id,
-                const GValue *value)
-{
-	return 4;
-}
-
-static gsize
-long_get_length (guchar        type_id,
-                 const GValue *value)
-{
-	return 8;
-}
-
-static gsize
-string_get_length (guchar        type_id,
-                   const GValue *value)
-{
-	const gchar *s = g_value_get_string (value);
-	return (s != NULL) ? strlen (s) + 1 : 1;
-}
-
-static GTypeSerializer*
-get_serializer_for_gtype (GType type)
-{
-	GTypeSerializer *s;
-
-	gpointer       key, value;
-	GHashTableIter iter;
-
-	g_hash_table_iter_init (&iter, type_funcs);
-
-	while (g_hash_table_iter_next (&iter, &key, &value)) {
-		s = value;
-		if (s != NULL && ((s->g_type == type) || g_type_is_a (type, s->g_type)))
-			return s;
-	}
-
-	return NULL;
-}
-
-static GTypeSerializer*
-get_serializer_for_type_id (guchar type_id)
-{
-	GTypeSerializer *s;
-	gpointer         key, value;
-	GHashTableIter   iter;
-
-	g_hash_table_iter_init (&iter, type_funcs);
-
-	while (g_hash_table_iter_next (&iter, &key, &value)) {
-		s = value;
-		if (s != NULL && s->type_id == type_id)
-			return s;
-	}
-
-	return NULL;
-}
-
-static gsize
-object_get_length (guchar        type_id,
-                   const GValue *value)
-{
-	gsize        total  = 0;
-	gsize        tmp    = 0;
-	GType        type   = G_VALUE_TYPE (value);
-	GObject     *object = g_value_get_object (value);
-	GParamSpec **params;
-	guint        n_props;
-	gint         i;
-
-	/* make sure name length is < 256 */
-	if ((tmp = strlen (g_type_name (type)) + 1) > 0xFF)
-		return 0;
-	total += 1 + tmp;
-
-	params = g_object_class_list_properties (G_OBJECT_GET_CLASS (object), &n_props);
-	if (n_props == 0) {
-		g_free (params);
-		total += 1; // NULL sentinal
-		return total;
-	}
-
-	for (i = 0; i < n_props; i++) {
-		GTypeSerializer *s;
-		GValue v = {0,};
-		if ((s = get_serializer_for_gtype (G_PARAM_SPEC_VALUE_TYPE (params [i]))) != NULL) {
-			// prop_name_len(1) + prop_name(N+NULL)
-			total += 1 + strlen (g_param_spec_get_name (params [i])) + 1;
-			// prop_type(1) + prop_value_len(4) + prop_value(N)
-			g_value_init (&v, params [i]->value_type);
-			g_object_get_property (object, g_param_spec_get_name (params [i]), &v);
-			total += 1 + 4 + s->get_length (s->type_id, &v);
-		}
-		g_value_unset (&v);
-	}
-
-	total += 1; // NULL sentinal
-
-	return total;
-}
-
-static gboolean
-int_serialize (guchar         type_id,
-               const GValue  *value,
-               gchar         *buffer,
-               GError       **error)
-{
-	guint i = GUINT_TO_BE (value->data[0].v_uint);
-	memcpy (buffer, &i, 4);
-	return TRUE;
-}
-
-static gboolean
-long_serialize (guchar         type_id,
-                const GValue  *value,
-                gchar         *buffer,
-                GError       **error)
-{
-	guint64 i = GUINT64_TO_BE (value->data[0].v_uint64);
-	memcpy (buffer, &i, 8);
-	return TRUE;
-}
-
-static gboolean
-string_serialize (guchar         type_id,
-                  const GValue  *value,
-                  gchar         *buffer,
-                  GError       **error)
-{
-	const gchar *str = g_value_get_string (value);
-	gsize len = strlen (str) + 1;
-	memcpy (buffer, str, len);
-	return TRUE;
-}
-
-static gboolean
-object_serialize (guchar         type_id,
-                  const GValue  *value,
-                  gchar         *buffer,
-                  GError       **error)
-{
-	GType         type   = G_VALUE_TYPE (value);
-	GObject      *object = g_value_get_object (value);
-	GParamSpec  **params;
-	gchar        *cursor;
-	const gchar  *type_name;
-	guchar        type_name_len;
-	guint         n_props;
-	gint          i;
-
-	type_name = g_type_name (type);
-
-	/* make sure name length is < 256 */
-	if ((type_name_len = strlen (type_name) + 1) >= 0xFF) {
-		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-		             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
-		             "The GType name must be < 256 bytes");
-		return FALSE;
-	}
-
-	cursor = buffer;
-
-	/* the length of the type name */
-	cursor [0] = type_name_len;
-	cursor++;
-
-	/* the object type length */
-	memcpy (cursor, type_name, type_name_len);
-	cursor += type_name_len;
-
-	/* if there are no properties, we can add null sentinal and finish */
-	params = g_object_class_list_properties (G_OBJECT_GET_CLASS (object), &n_props);
-	if (n_props == 0) {
-		cursor [0] = '\0';
-		g_free (params);
-		return TRUE;
-	}
-
-	for (i = 0; i < n_props; i++) {
-		GTypeSerializer *s;
-		GValue v = {0,};
-		if ((s = get_serializer_for_gtype (G_PARAM_SPEC_VALUE_TYPE (params [i]))) != NULL) {
-			type_name = g_param_spec_get_name (params [i]);
-			type_name_len = strlen (type_name) + 1;
-
-			if (type_name_len >= 0xFF)
-				goto next_item;
-
-			cursor [0] = type_name_len;
-			cursor++;
-			memcpy (cursor + 1, &type_name, type_name_len);
-			cursor += type_name_len;
-
-			cursor [0] = s->type_id;
-			cursor++;
-
-			g_value_init (&v, G_PARAM_SPEC_VALUE_TYPE (params [i]));
-			g_object_get_property (object, type_name, &v);
-
-			guint prop_length = s->get_length (s->type_id, &v);
-			guint be_prop_length = GUINT32_TO_BE (prop_length);
-			memcpy (cursor, &be_prop_length, 4);
-			cursor += 4;
-
-			if (!s->serialize (s->type_id, &v, cursor, error)) {
-				g_value_unset (&v);
-				return FALSE;
-			}
-
-			cursor += prop_length;
-		}
-	next_item:
-		g_value_unset (&v);
-	}
-
-	return TRUE;
-}
-
-static GType
-g_type_for_type_id (guint type_id)
-{
-	GHashTableIter iter;
-	gpointer key, value;
-	g_hash_table_iter_init (&iter, type_funcs);
-	while (g_hash_table_iter_next (&iter, &key, &value)) {
-		GTypeSerializer *s = value;
-		if (s->type_id == type_id)
-			return s->g_type;
-	}
-	return 0;
-}
-
-static gboolean
-int_deserialize (guchar        type_id,
-                 GValue       *value,
-                 const gchar  *buffer,
-                 GError      **error)
-{
-	value->g_type = g_type_for_type_id (type_id);
-	value->data[0].v_uint = GUINT_FROM_BE (*((guint*)buffer));
-	return TRUE;
-}
-
-static gboolean
-long_deserialize (guchar        type_id,
-                  GValue       *value,
-                  const gchar  *buffer,
-                  GError      **error)
-{
-	value->g_type = g_type_for_type_id (type_id);
-	value->data[0].v_uint64 = GUINT64_FROM_BE (*((guint64*)buffer));
-	return TRUE;
-}
-
-static gboolean
-string_deserialize (guchar        type_id,
-                    GValue       *value,
-                    const gchar  *buffer,
-                    GError      **error)
-{
-	value->g_type = G_TYPE_STRING;
-	value->data[0].v_pointer = g_strdup (buffer);
-	return TRUE;
-}
-
-static gboolean
-object_deserialize (guchar        type_id,
-                    GValue       *value,
-                    const gchar  *buffer,
-                    GError      **error)
-{
-	const gchar *cursor;
-	guchar       type_name_len = 0,
-	             prop_name_len = 0;
-	gchar       *type_name     = NULL,
-	            *prop_name     = NULL;
-	guchar       prop_type     = 0;
-	GType        type          = G_TYPE_INVALID;
-	GObject     *object        = NULL;
-	guint        length        = 0;
-
-	g_return_val_if_fail (value != NULL, FALSE);
-	g_return_val_if_fail (buffer != NULL, FALSE);
-
-	cursor = buffer;
-
-	/* get the type name */
-
-	type_name_len = (guchar)cursor [0];
-	cursor++;
-
-	type_name = g_strdup (cursor);
-	if (strlen (type_name) >= 255) {
-		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
-		             "The data within the buffer was invalid");
-		g_free (type_name);
-		return FALSE;
-	}
-
-	/* lookup the type and create an instance */
-	if (G_UNLIKELY ((type = g_type_from_name (type_name)) == G_TYPE_INVALID)) {
-		/* try to lookup the symbol */
-	}
-
-	g_free (type_name);
-	type_name = NULL;
-
-	/* verify the type derives G_TYPE_OBJECT */
-	if (!g_type_is_a (type, G_TYPE_OBJECT)) {
-		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
-		             "Got something other than an Object GType");
-		return FALSE;
-	}
-
-	/* create an instance of the object */
-	object = g_object_new (type, NULL);
-
-	/* setup cursor at first position after type info */
-	cursor = buffer + 1 + type_name_len;
-
-	while (cursor [0] != '\0') {
-		/* get the prop name length */
-		prop_name_len = cursor [0];
-		cursor++;
-
-		/* get the prop name */
-		prop_name = g_strdup (cursor + 1);
-		if (strlen (prop_name) + 1 != prop_name_len) {
-			g_free (prop_name);
-			goto error;
-		}
-		cursor += prop_name_len;
-
-		/* get the type of the property data */
-		prop_type = cursor [0];
-		cursor++;
-
-		/* get the length of the property data */
-		memcpy (&length, cursor, 4);
-		length = GUINT32_FROM_BE (length);
-		cursor += 4;
-
-		GTypeSerializer *s = get_serializer_for_type_id (prop_type);
-		GValue v = {0,};
-		if (!s) {
-			g_free (prop_name);
-			goto error;
-		}
-
-		if (!s->deserialize (prop_type, &v, cursor, error)) {
-			g_free (prop_name);
-			goto error;
-		}
-
-		cursor += length;
-		g_object_set_property (object, prop_name, &v);
-	}
-
-	g_value_unset (value);
-	g_value_init (value, type);
-	g_value_set_object (value, object);
-
-	return TRUE;
-
-error:
-	g_value_unset (value);
-	if (object)
-		g_object_unref (object);
-	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-	             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
-	             "Got invalid data within serialized object");
-	return FALSE;
-}
-
-static gsize
-get_buffer_length (const GValue *value)
-{
-	GTypeSerializer *s = get_serializer_for_gtype (G_VALUE_TYPE (value));
-	if (s)
-		return s->get_length (s->type_id, value);
-	return 0;
-}
-
-static guchar
-get_type_id (const GValue *value)
-{
-	GTypeSerializer *s = get_serializer_for_gtype (G_VALUE_TYPE (value));
-	if (s)
-		return s->type_id;
-	return 0;
-}
-
-static gboolean
-write_value (gchar         *buffer,
-             const GValue  *value,
-             GError       **error)
-{
-	GTypeSerializer *s = get_serializer_for_gtype (G_VALUE_TYPE (value));
-	if (s)
-		return s->serialize (s->type_id, value, buffer, error);
-	return FALSE;
-}
-
 static gboolean
 catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
                                           const GValue       *value,
@@ -543,54 +148,7 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
                                           gsize              *buffer_length,
                                           GError            **error)
 {
-	gchar *stream;
-	gsize  stream_length;
-
-	g_return_val_if_fail (value != NULL, FALSE);
-	g_return_val_if_fail (buffer != NULL, FALSE);
-	g_return_val_if_fail (buffer_length != NULL, FALSE);
-
-	if ((stream_length = get_buffer_length (value)) == 0) {
-		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-		             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
-		             "Do not know how to serialize type \"%s\"",
-		             g_type_name (G_VALUE_TYPE (value)));
-		return FALSE;
-	}
-
-	stream = g_malloc0 (stream_length);
-	stream [0] = get_type_id (value);
-	if (write_value ((gchar*)stream + 1, value, error)) {
-		*buffer = stream;
-		*buffer_length = stream_length;
-		return TRUE;
-	}
-
-	g_free (stream);
-	return FALSE;
-}
-
-static gboolean
-read_value (guchar        type_id,
-            const gchar  *buffer,
-            GValue       *value,
-            GError      **error)
-{
-	g_return_val_if_fail (value != NULL, FALSE);
-
-	GTypeSerializer *s = get_serializer_for_type_id (type_id);
-
-	if (s != NULL) {
-		if (G_VALUE_TYPE (value) == 0)
-			g_value_init (value, s->g_type);
-		return s->deserialize (s->type_id, value, buffer, error);
-	}
-
-	g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
-	             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
-	             "Do not know how to deserialize type %d", type_id);
-
-	return FALSE;
+	return catalina_binary_formatter_write_value ((gpointer)formatter, (GValue*)value, buffer, (guint*)buffer_length, error);
 }
 
 static gboolean
@@ -600,15 +158,7 @@ catalina_binary_formatter_real_deserialize (CatalinaFormatter  *formatter,
                                             gsize               buffer_length,
                                             GError            **error)
 {
-	guchar type_id;
-
-	g_return_val_if_fail (value != NULL, FALSE);
-	g_return_val_if_fail (buffer != NULL, FALSE);
-	g_return_val_if_fail (buffer_length > 0, FALSE);
-
-	type_id = buffer [0];
-
-	return read_value (type_id, (gchar*)buffer + 1, value, error);
+	return catalina_binary_formatter_read_value ((gpointer)formatter, value, buffer, (guint)buffer_length, error);
 }
 
 static void
@@ -624,66 +174,1403 @@ catalina_binary_formatter_error_quark (void)
 	return g_quark_from_static_string ("catalina-binary-formatter-error-quark");
 }
 
-/***************************************************************************
- *               Serializers for GLib and GObject Types 
- ***************************************************************************/
-
-static GTypeSerializer int_s     = { 1,          0, int_get_length,    int_serialize,    int_deserialize    };
-static GTypeSerializer uint_s    = { 1 | 1 << 7, 0, int_get_length,    int_serialize,    int_deserialize    };
-static GTypeSerializer flags_s   = { 2,          0, int_get_length,    int_serialize,    int_deserialize    };
-static GTypeSerializer enum_s    = { 2 | 1 << 7, 0, int_get_length,    int_serialize,    int_deserialize    };
-static GTypeSerializer long_s    = { 3,          0, long_get_length,   long_serialize,   long_deserialize   };
-static GTypeSerializer ulong_s   = { 3 | 1 << 7, 0, long_get_length,   long_serialize,   long_deserialize   };
-static GTypeSerializer int64_s   = { 4,          0, long_get_length,   long_serialize,   long_deserialize   };
-static GTypeSerializer uint64_s  = { 4 | 1 << 7, 0, long_get_length,   long_serialize,   long_deserialize   };
-static GTypeSerializer double_s  = { 5,          0, long_get_length,   long_serialize,   long_deserialize   };
-static GTypeSerializer float_s   = { 5 | 1 << 7, 0, long_get_length,   long_serialize,   long_deserialize   };
-static GTypeSerializer string_s  = { 6,          0, string_get_length, string_serialize, string_deserialize };
-static GTypeSerializer object_s  = { 7,          0, object_get_length, object_serialize, object_deserialize };
-
-static void
-g_type_serializer_init (void)
+/**
+ * catalina_binary_formatter_new:
+ *
+ * Creates a new instance of the binary formatter.
+ *
+ * Return value: the newly created #CatalinaBinaryFormatter instance
+ */
+CatalinaFormatter*
+catalina_binary_formatter_new (void)
 {
-	type_funcs = g_hash_table_new (g_int_hash, g_int_equal);
-	type_id_funcs = g_hash_table_new (g_int_hash, g_int_equal);
+	return g_object_new (CATALINA_TYPE_BINARY_FORMATTER, NULL);
+}
 
-	int_s.g_type = G_TYPE_INT;
-	uint_s.g_type = G_TYPE_UINT;
-	flags_s.g_type = G_TYPE_FLAGS;
-	enum_s.g_type = G_TYPE_ENUM;
-	long_s.g_type = G_TYPE_LONG;
-	ulong_s.g_type = G_TYPE_ULONG;
-	int64_s.g_type = G_TYPE_INT64;
-	uint64_s.g_type = G_TYPE_UINT64;
-	double_s.g_type = G_TYPE_DOUBLE;
-	float_s.g_type = G_TYPE_FLOAT;
-	string_s.g_type = G_TYPE_STRING;
-	object_s.g_type = G_TYPE_OBJECT;
+/**
+ * catalina_binary_formatter_write_boolean:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gboolean
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_boolean (CatalinaBinaryFormatter *formatter,
+                                         gboolean                 value,
+                                         gchar                  **buffer,
+                                         guint                   *buffer_length,
+                                         GError                 **error)
+{
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
 
-	/* indexed by GType */
-	g_hash_table_insert (type_funcs, &int_s.g_type, &int_s);
-	g_hash_table_insert (type_funcs, &uint_s.g_type, &uint_s);
-	g_hash_table_insert (type_funcs, &flags_s.g_type, &flags_s);
-	g_hash_table_insert (type_funcs, &enum_s.g_type, &enum_s);
-	g_hash_table_insert (type_funcs, &long_s.g_type, &long_s);
-	g_hash_table_insert (type_funcs, &ulong_s.g_type, &ulong_s);
-	g_hash_table_insert (type_funcs, &int64_s.g_type, &int64_s);
-	g_hash_table_insert (type_funcs, &uint64_s.g_type, &uint64_s);
-	g_hash_table_insert (type_funcs, &double_s.g_type, &double_s);
-	g_hash_table_insert (type_funcs, &float_s.g_type, &float_s);
-	g_hash_table_insert (type_funcs, &string_s.g_type, &string_s);
-	g_hash_table_insert (type_funcs, &object_s.g_type, &object_s);
+	*buffer = g_malloc (2);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_BOOLEAN;
+	(*buffer) [1] = (guchar)value;
+	*buffer_length = 2;
 
-	/* indexed by type_id */
-	g_hash_table_insert (type_id_funcs, &int_s.type_id, &int_s);
-	g_hash_table_insert (type_id_funcs, &uint_s.type_id, &uint_s);
-	g_hash_table_insert (type_id_funcs, &enum_s.type_id, &enum_s);
-	g_hash_table_insert (type_id_funcs, &flags_s.type_id, &flags_s);
-	g_hash_table_insert (type_id_funcs, &long_s.type_id, &long_s);
-	g_hash_table_insert (type_id_funcs, &ulong_s.type_id, &ulong_s);
-	g_hash_table_insert (type_id_funcs, &int64_s.type_id, &int64_s);
-	g_hash_table_insert (type_id_funcs, &uint64_s.type_id, &uint64_s);
-	g_hash_table_insert (type_id_funcs, &double_s.type_id, &double_s);
-	g_hash_table_insert (type_id_funcs, &float_s.type_id, &float_s);
-	g_hash_table_insert (type_id_funcs, &object_s.type_id, &object_s);
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_boolean:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #gboolean
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #gboolean from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_boolean (CatalinaBinaryFormatter *formatter,
+                                        gboolean                *value,
+                                        gchar                   *buffer,
+                                        guint                    buffer_length,
+                                        GError                 **error)
+{
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 2, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_BOOLEAN)
+		return FALSE;
+
+	*value = buffer [1];
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_char:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gchar
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_char (CatalinaBinaryFormatter *formatter,
+                                      gchar                    value,
+                                      gchar                  **buffer,
+                                      guint                   *buffer_length,
+                                      GError                 **error)
+{
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	*buffer = g_malloc (2);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_CHAR;
+	(*buffer) [1] = (guchar)value;
+	*buffer_length = 2;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_char:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #gchar
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #gchar from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_char (CatalinaBinaryFormatter *formatter,
+                                     gchar                   *value,
+                                     gchar                   *buffer,
+                                     guint                    buffer_length,
+                                     GError                 **error)
+{
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 2, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_CHAR)
+		return FALSE;
+
+	*value = buffer [1];
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_uchar:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #guchar
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_uchar (CatalinaBinaryFormatter *formatter,
+                                       guchar                   value,
+                                       gchar                  **buffer,
+                                       guint                   *buffer_length,
+                                       GError                 **error)
+{
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	*buffer = g_malloc (2);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_UCHAR;
+	(*buffer) [1] = (guchar)value;
+	*buffer_length = 2;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_uchar:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #guchar
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #guchar from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_uchar (CatalinaBinaryFormatter *formatter,
+                                      guchar                  *value,
+                                      gchar                   *buffer,
+                                      guint                    buffer_length,
+                                      GError                 **error)
+{
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 2, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_UCHAR)
+		return FALSE;
+
+	*value = buffer [1];
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_short:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gshort
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_short (CatalinaBinaryFormatter *formatter,
+                                       gshort                   value,
+                                       gchar                  **buffer,
+                                       guint                   *buffer_length,
+                                       GError                 **error)
+{
+	gshort be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GINT16_TO_BE (value);
+
+	*buffer = g_malloc (3);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_SHORT;
+	memcpy ((*buffer) + 1, &be_value, 2);
+	*buffer_length = 3;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_short:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #gshort
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #gshort from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_short (CatalinaBinaryFormatter *formatter,
+                                      gshort                  *value,
+                                      gchar                   *buffer,
+                                      guint                    buffer_length,
+                                      GError                 **error)
+{
+	gshort be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 3, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_SHORT)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 2);
+	*value = GINT16_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_ushort:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gushort
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_ushort (CatalinaBinaryFormatter *formatter,
+                                        gushort                  value,
+                                        gchar                 **buffer,
+                                        guint                   *buffer_length,
+                                        GError                 **error)
+{
+	gushort be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GUINT16_TO_BE (value);
+
+	*buffer = g_malloc (3);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_USHORT;
+	memcpy ((*buffer) + 1, &be_value, 2);
+	*buffer_length = 3;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_ushort:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #gushort
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #gushort from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_ushort (CatalinaBinaryFormatter *formatter,
+                                       gushort                 *value,
+                                       gchar                   *buffer,
+                                       guint                    buffer_length,
+                                       GError                 **error)
+{
+	gushort be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 3, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_USHORT)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 2);
+	*value = GUINT16_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_int:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gint
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_int (CatalinaBinaryFormatter *formatter,
+                                     gint                     value,
+                                     gchar                  **buffer,
+                                     guint                   *buffer_length,
+                                     GError                 **error)
+{
+	gint be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GINT32_TO_BE (value);
+
+	*buffer = g_malloc (5);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_INT;
+	memcpy ((*buffer) + 1, &be_value, 4);
+	*buffer_length = 5;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_int:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #gint
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #gint from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_int (CatalinaBinaryFormatter *formatter,
+                                    gint                    *value,
+                                    gchar                   *buffer,
+                                    guint                    buffer_length,
+                                    GError                 **error)
+{
+	gint be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 5, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_INT)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 4);
+	*value = GINT32_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_uint:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #guint
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_uint (CatalinaBinaryFormatter *formatter,
+                                      guint                    value,
+                                      gchar                  **buffer,
+                                      guint                   *buffer_length,
+                                      GError                 **error)
+{
+	guint be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GUINT32_TO_BE (value);
+
+	*buffer = g_malloc (5);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_UINT;
+	memcpy ((*buffer) + 1, &be_value, 4);
+	*buffer_length = 5;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_uint:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #guint
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #guint from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_uint (CatalinaBinaryFormatter *formatter,
+                                     guint                   *value,
+                                     gchar                   *buffer,
+                                     guint                    buffer_length,
+                                     GError                 **error)
+{
+	guint be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 5, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_UINT)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 4);
+	*value = GUINT32_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_long:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #glong
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_long (CatalinaBinaryFormatter *formatter,
+                                      glong                    value,
+                                      gchar                  **buffer,
+                                      guint                   *buffer_length,
+                                      GError                 **error)
+{
+	glong be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GLONG_TO_BE (value);
+
+	*buffer = g_malloc (9);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_LONG;
+	memcpy ((*buffer) + 1, &be_value, 8);
+	*buffer_length = 9;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_long:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #glong
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #glong from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_long (CatalinaBinaryFormatter *formatter,
+                                     glong                   *value,
+                                     gchar                   *buffer,
+                                     guint                    buffer_length,
+                                     GError                 **error)
+{
+	glong be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 9, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_LONG)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 8);
+	*value = GLONG_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_ulong:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gulong
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_ulong (CatalinaBinaryFormatter *formatter,
+                                       gulong                   value,
+                                       gchar                  **buffer,
+                                       guint                   *buffer_length,
+                                       GError                 **error)
+{
+	gulong be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GULONG_TO_BE (value);
+
+	*buffer = g_malloc (9);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_ULONG;
+	memcpy ((*buffer) + 1, &be_value, 8);
+	*buffer_length = 9;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_ulong:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #gulong
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #gulong from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_ulong (CatalinaBinaryFormatter *formatter,
+                                      gulong                  *value,
+                                      gchar                   *buffer,
+                                      guint                    buffer_length,
+                                      GError                 **error)
+{
+	gulong be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 9, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_ULONG)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 8);
+	*value = GULONG_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_int64:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gint64
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_int64 (CatalinaBinaryFormatter *formatter,
+                                       gint64                   value,
+                                       gchar                  **buffer,
+                                       guint                   *buffer_length,
+                                       GError                 **error)
+{
+	gint64 be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GINT64_TO_BE (value);
+
+	*buffer = g_malloc (9);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_INT64;
+	memcpy ((*buffer) + 1, &be_value, 8);
+	*buffer_length = 9;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_int64:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #gint64
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #gint64 from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_int64 (CatalinaBinaryFormatter *formatter,
+                                      gint64                  *value,
+                                      gchar                   *buffer,
+                                      guint                    buffer_length,
+                                      GError                 **error)
+{
+	gint64 be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 9, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_INT64)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 8);
+	*value = GINT64_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_uint64:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #guint64
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_uint64 (CatalinaBinaryFormatter *formatter,
+                                        guint64                  value,
+                                        gchar                  **buffer,
+                                        guint                   *buffer_length,
+                                        GError                 **error)
+{
+	guint64 be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	be_value = GUINT64_TO_BE (value);
+
+	*buffer = g_malloc (9);
+	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_UINT64;
+	memcpy ((*buffer) + 1, &be_value, 8);
+	*buffer_length = 9;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_uint64:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a #guint64
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a #guint64 from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_uint64 (CatalinaBinaryFormatter *formatter,
+                                       guint64                 *value,
+                                       gchar                   *buffer,
+                                       guint                    buffer_length,
+                                       GError                 **error)
+{
+	guint64 be_value;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length == 9, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_UINT64)
+		return FALSE;
+
+	memcpy (&be_value, buffer + 1, 8);
+	*value = GUINT64_FROM_BE (be_value);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_string:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A string or %NULL
+ * @value_length: the length of the string or -1 if it is %NULL terminated
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_string (CatalinaBinaryFormatter *formatter,
+                                        gchar                   *value,
+                                        gint                     value_length,
+                                        gchar                  **buffer,
+                                        guint                   *buffer_length,
+                                        GError                 **error)
+{
+	guint length = 0;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	if (value && value_length == -1)
+		length = strlen (value) + 1;
+	else if (value_length > 0)
+		length = value_length;
+
+	*buffer_length = 1 + 4 + length;
+	*buffer = g_malloc0 (*buffer_length);
+	(*buffer) [0] = BINARY_FORMATTER_TYPE_STRING;
+
+	if (value)
+		memcpy ((*buffer) + 5, value, length);
+
+	length = GUINT32_TO_BE (length);
+	memcpy ((*buffer) + 1, &length, 4);
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_string:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A location for a string
+ * @value_length: A location for the strings length
+ * @buffer: the buffer to read
+ * @buffer_length: the length of the buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes a string from @buffer and stores it at the location pointed
+ * by @value.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_string (CatalinaBinaryFormatter  *formatter,
+                                       gchar                   **value,
+                                       guint                    *value_length,
+                                       gchar                    *buffer,
+                                       guint                     buffer_length,
+                                       GError                  **error)
+{
+	guint length;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (value != NULL, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_STRING)
+		return FALSE;
+
+	memcpy (&length, buffer + 1, 4);
+	length = GUINT32_FROM_BE (length);
+
+	if (length + 5 != buffer_length) {
+		return FALSE;
+	}
+
+	*value = g_malloc (length);
+	memcpy (*value, buffer + 5, length);
+
+	if (value_length)
+		*value_length = length;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_double:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gdouble
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_double (CatalinaBinaryFormatter *formatter,
+                                        gdouble                  value,
+                                        gchar                  **buffer,
+                                        guint                   *buffer_length,
+                                        GError                 **error)
+{
+	gchar *dbuf;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	dbuf = g_strdup_printf ("%g", value);
+	if (!catalina_binary_formatter_write_string (formatter,
+	                                             dbuf, -1,
+	                                             buffer, buffer_length,
+	                                             error)) {
+		g_free (dbuf);
+		return FALSE;
+	}
+
+	g_free (dbuf);
+	(*buffer) [0] = BINARY_FORMATTER_TYPE_DOUBLE;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_double:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gdouble
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_double (CatalinaBinaryFormatter *formatter,
+                                       gdouble                 *value,
+                                       gchar                   *buffer,
+                                       guint                    buffer_length,
+                                       GError                 **error)
+{
+	gchar    *dbuf     = NULL;
+	guint     dbuf_len = 0;
+	gboolean  success  = FALSE;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (value != NULL, FALSE);
+
+	buffer [0] = BINARY_FORMATTER_TYPE_STRING;
+
+	if (!catalina_binary_formatter_read_string (formatter,
+	                                            &dbuf, &dbuf_len,
+	                                            buffer, buffer_length,
+	                                            error))
+		goto cleanup;
+
+	errno = 0;
+	*value = strtod (dbuf, NULL);
+	if (errno)
+		goto cleanup;
+
+	success = TRUE;
+
+cleanup:
+	buffer [0] = BINARY_FORMATTER_TYPE_DOUBLE;
+	g_free (dbuf);
+
+	return success;
+}
+
+/**
+ * catalina_binary_formatter_write_float:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gfloat
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_float (CatalinaBinaryFormatter *formatter,
+                                       gfloat                   value,
+                                       gchar                  **buffer,
+                                       guint                   *buffer_length,
+                                       GError                 **error)
+{
+	gchar *dbuf;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	dbuf = g_strdup_printf ("%g", value);
+	if (!catalina_binary_formatter_write_string (formatter,
+	                                             dbuf, -1,
+	                                             buffer, buffer_length,
+	                                             error)) {
+		g_free (dbuf);
+		return FALSE;
+	}
+
+	g_free (dbuf);
+	(*buffer) [0] = BINARY_FORMATTER_TYPE_FLOAT;
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_float:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #gfloat
+ * @buffer: A location for the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes @value into a buffer which is stored at the location @buffer.
+ * The resulting buffer length is stored to @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_float (CatalinaBinaryFormatter *formatter,
+                                      gfloat                  *value,
+                                      gchar                   *buffer,
+                                      guint                    buffer_length,
+                                      GError                 **error)
+{
+	gchar    *dbuf     = NULL;
+	guint     dbuf_len = 0;
+	gboolean  success  = FALSE;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (value != NULL, FALSE);
+
+	buffer [0] = BINARY_FORMATTER_TYPE_STRING;
+
+	if (!catalina_binary_formatter_read_string (formatter,
+	                                            &dbuf, &dbuf_len,
+	                                            buffer, buffer_length,
+	                                            error))
+		goto cleanup;
+
+	errno = 0;
+	*value = strtof (dbuf, NULL);
+	if (errno)
+		goto cleanup;
+
+	success = TRUE;
+
+cleanup:
+	buffer [0] = BINARY_FORMATTER_TYPE_FLOAT;
+	g_free (dbuf);
+
+	return success;
+}
+
+/**
+ * catalina_binary_formatter_write_object:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @object: the object to serialize
+ * @buffer: a location for the resulting buffer
+ * @buffer_length: a location for the size of the resulting buffer
+ * @error: a location for a #GError or %NULL
+ *
+ * Serialized @object and stores the resulting buffer into the location provided by
+ * @buffer.  The buffer length is stored in @buffer_length.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_object (CatalinaBinaryFormatter  *formatter,
+                                        GObject                  *object,
+                                        gchar                   **buffer,
+                                        guint                    *buffer_length,
+                                        GError                  **error)
+{
+	GType         obj_type;
+	const gchar  *type_name;
+	guchar        type_name_len;
+	gchar        *header;
+	guint         header_length;
+	GParamSpec  **params;
+	guint         n_params;
+	guint         total;
+	guint         i;
+	GList        *chunks = NULL,
+		     *iter;
+
+	g_return_val_if_fail (object != NULL, FALSE);
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	obj_type = G_TYPE_FROM_INSTANCE (object);
+	type_name = g_type_name (obj_type);
+	type_name_len = strlen (type_name) + 1;
+
+	header_length = 1 + 1 + type_name_len;
+	header = g_malloc (header_length);
+	header [0] = (gchar)BINARY_FORMATTER_TYPE_OBJECT;
+	header [1] = (gchar)type_name_len;
+	memcpy (header + 2, type_name, type_name_len);
+	total += header_length;
+
+	params = g_object_class_list_properties (G_OBJECT_GET_CLASS (object), &n_params);
+	for (i = 0; i < n_params; i++) {
+		if (can_serialize_type (params [i]->value_type)) {
+			GValue  value = {0,};
+			Chunk  *chunk = NULL;
+
+			chunk = g_slice_new (Chunk);
+			chunk->key = params [i]->name;
+			chunk->key_length = strlen (chunk->key) + 1;
+
+			g_value_init (&value, params [i]->value_type);
+			g_object_get_property (object, chunk->key, &value);
+
+			if (!catalina_binary_formatter_write_value (formatter,
+			                                            &value,
+			                                            &chunk->value,
+			                                            &chunk->value_length,
+			                                            error))
+			{
+				g_warning ("Skipping property \"%s\"", chunk->key);
+				g_slice_free (Chunk, chunk);
+				goto next_prop;
+			}
+
+			chunks = g_list_prepend (chunks, chunk);
+			total += 1 + chunk->key_length + 4 + chunk->value_length;
+
+		next_prop:
+			g_value_unset (&value);
+		}
+	}
+
+	/* null sentinal */
+	total += 1;
+
+	*buffer_length = total;
+	*buffer = g_malloc (total);
+	memcpy (*buffer, header, header_length);
+	g_free (header);
+
+	guint offset = header_length;
+
+	for (iter = chunks; iter; iter = iter->next) {
+		Chunk *chunk = iter->data;
+		guint  be_length = GUINT32_TO_BE (chunk->value_length);
+
+		(*buffer + offset) [0] = (guchar)chunk->key_length;
+		offset++;
+		memcpy ((*buffer) + offset, chunk->key, chunk->key_length);
+		offset += chunk->key_length;
+		memcpy ((*buffer) + offset, &be_length, 4);
+		offset += 4;
+		memcpy ((*buffer) + offset, chunk->value, chunk->value_length);
+		offset += chunk->value_length;
+
+		g_free (chunk->value);
+		g_slice_free (Chunk, chunk);
+	}
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_read_object:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @object: a location for a #GObject
+ * @buffer: the buffer to deserialize
+ * @buffer_length: the length of @buffer
+ * @error: A location for a #GError or %NULL
+ *
+ * Deserializes @buffer and generates a #GObject instances from it.  Upon
+ * error, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_object (CatalinaBinaryFormatter  *formatter,
+                                       GObject                 **object,
+                                       gchar                    *buffer,
+                                       guint                     buffer_length,
+                                       GError                  **error)
+{
+	GType   type;
+	gchar  *type_name,
+	       *cursor;
+	guchar  type_name_len;
+
+	g_return_val_if_fail (object != NULL, FALSE);
+	g_return_val_if_fail (buffer != NULL, FALSE);
+
+	if (((guchar)buffer [0]) != BINARY_FORMATTER_TYPE_OBJECT)
+		return FALSE;
+
+	type_name_len = (guchar)buffer [1];
+	type_name = g_malloc (type_name_len);
+	memcpy (type_name, buffer + 2, type_name_len);
+	type = g_type_from_name (type_name);
+	g_free (type_name);
+
+	if (!type || !g_type_is_a (type, G_TYPE_OBJECT))
+		return FALSE;
+
+	*object = g_object_new (type, NULL);
+
+	cursor = buffer + 1 + 1 + type_name_len;
+
+	while (cursor [0] != '\0') {
+		GValue v = {0,};
+		guchar prop_name_len = (guchar)cursor [0];
+		cursor++;
+		gchar *prop_name = g_malloc (prop_name_len);
+		memcpy (prop_name, cursor, prop_name_len);
+		cursor += prop_name_len;
+
+		guint prop_value_len;
+		memcpy (&prop_value_len, cursor, 4);
+		prop_value_len = GUINT32_FROM_BE (prop_value_len);
+		cursor += 4;
+
+		if (!catalina_binary_formatter_read_value (formatter, &v, cursor, prop_value_len, error)) {
+			/* FIXME: error handling */
+			g_debug ("Uh, error reading value (type_id %d)", cursor [0]);
+		}
+
+		g_object_set_property (*object, prop_name, &v);
+
+		cursor += prop_value_len;
+
+		g_free (prop_name);
+	}
+
+	return TRUE;
+}
+
+/**
+ * catalina_binary_formatter_write_value:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #GValue
+ * @buffer: a location to store the resulting buffer
+ * @buffer_length: A location to store the resulting buffer length
+ * @error: A location for a #GError or %NULL
+ *
+ * Serializes the real value stored in @value using the most appropriate
+ * serialization method.  The resulting buffer is stored in @buffer.
+ *
+ * Upon error, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_write_value (CatalinaBinaryFormatter *formatter,
+                                       GValue                  *value,
+                                       gchar                  **buffer,
+                                       guint                   *buffer_length,
+                                       GError                 **error)
+{
+	GType type;
+
+	g_return_val_if_fail (buffer != NULL, FALSE);
+	g_return_val_if_fail (buffer_length != NULL, FALSE);
+
+	type = G_VALUE_TYPE (value);
+
+	if (type == G_TYPE_NONE)
+		return FALSE;
+	else if (type == G_TYPE_STRING)
+		return catalina_binary_formatter_write_string (formatter, (gchar*)g_value_get_string (value), -1, buffer, buffer_length, error);
+	else if (type == G_TYPE_INT)
+		return catalina_binary_formatter_write_int (formatter, g_value_get_int (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_UINT)
+		return catalina_binary_formatter_write_uint (formatter, g_value_get_uint (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_BOOLEAN)
+		return catalina_binary_formatter_write_boolean (formatter, g_value_get_boolean (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_LONG)
+		return catalina_binary_formatter_write_long (formatter, g_value_get_long (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_ULONG)
+		return catalina_binary_formatter_write_ulong (formatter, g_value_get_ulong (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_INT64)
+		return catalina_binary_formatter_write_int64 (formatter, g_value_get_int64 (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_UINT64)
+		return catalina_binary_formatter_write_uint64 (formatter, g_value_get_uint64 (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_DOUBLE)
+		return catalina_binary_formatter_write_double (formatter, g_value_get_double (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_FLOAT)
+		return catalina_binary_formatter_write_float (formatter, g_value_get_float (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_CHAR)
+		return catalina_binary_formatter_write_char (formatter, g_value_get_char (value), buffer, buffer_length, error);
+	else if (type == G_TYPE_UCHAR)
+		return catalina_binary_formatter_write_uchar (formatter, g_value_get_uchar (value), buffer, buffer_length, error);
+	else if (g_type_is_a (type, G_TYPE_OBJECT))
+		return catalina_binary_formatter_write_object (formatter, g_value_get_object (value), buffer, buffer_length, error);
+
+	return FALSE;
+}
+
+/**
+ * catalina_binary_formatter_read_value:
+ * @formatter: A #CatalinaBinaryFormatter
+ * @value: A #GValue
+ * @buffer: the buffer to deserialize
+ * @buffer_length: the length of @buffer
+ * @error: a location for a #GError or %NULL
+ *
+ * d
+ *
+ * Upon error, %FALSE is returned and @error is set.
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_binary_formatter_read_value (CatalinaBinaryFormatter  *formatter,
+                                      GValue                   *value,
+                                      gchar                    *buffer,
+                                      guint                     buffer_length,
+                                      GError                  **error)
+{
+	guchar   type_id;
+	gboolean success = FALSE;
+
+	g_return_val_if_fail (value != NULL, FALSE);
+	g_return_val_if_fail (buffer != NULL, FALSE);
+
+	type_id = buffer [0];
+
+	if (type_id == BINARY_FORMATTER_TYPE_BOOLEAN) {
+		gboolean v = FALSE;
+		success = catalina_binary_formatter_read_boolean (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_BOOLEAN);
+		g_value_set_boolean (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_INT64) {
+		gint64 v = 0;
+		success = catalina_binary_formatter_read_int64 (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_INT64);
+		g_value_set_int64 (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_UINT64) {
+		guint64 v = 0;
+		success = catalina_binary_formatter_read_uint64 (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_UINT64);
+		g_value_set_uint64 (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_LONG) {
+		glong v = 0;
+		success = catalina_binary_formatter_read_long (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_LONG);
+		g_value_set_long (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_ULONG) {
+		gulong v = 0;
+		success = catalina_binary_formatter_read_ulong (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_ULONG);
+		g_value_set_ulong (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_INT) {
+		gint v = 0;
+		success = catalina_binary_formatter_read_int (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_INT);
+		g_value_set_int (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_UINT) {
+		guint v = 0;
+		success = catalina_binary_formatter_read_uint (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_UINT);
+		g_value_set_uint (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_SHORT) {
+		gshort v = 0;
+		success = catalina_binary_formatter_read_short (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_INT);
+		g_value_set_int (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_USHORT) {
+		gushort v = 0;
+		success = catalina_binary_formatter_read_ushort (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_INT);
+		g_value_set_int (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_CHAR) {
+		gchar v = 0;
+		success = catalina_binary_formatter_read_char (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_CHAR);
+		g_value_set_char (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_UCHAR) {
+		guchar v = 0;
+		success = catalina_binary_formatter_read_uchar (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_UCHAR);
+		g_value_set_uchar (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_DOUBLE) {
+		gdouble v = 0;
+		success = catalina_binary_formatter_read_double (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_DOUBLE);
+		g_value_set_double (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_FLOAT) {
+		gfloat v = 0;
+		success = catalina_binary_formatter_read_float (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_FLOAT);
+		g_value_set_float (value, v);
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_STRING) {
+		gchar *v = NULL;
+		guint  l = 0;
+		success = catalina_binary_formatter_read_string (formatter, &v, &l, buffer, buffer_length, error);
+		if (v && strlen(v) + 1 == l) {
+			g_value_init (value, G_TYPE_STRING);
+			g_value_take_string (value, v);
+		}
+		else if (v) {
+			/* not a null terminated string */
+		}
+		else {
+			g_value_init (value, G_TYPE_STRING);
+			g_value_set_string (value, NULL);
+		}
+	}
+	else if (type_id == BINARY_FORMATTER_TYPE_OBJECT) {
+		GObject *v = NULL;
+		success = catalina_binary_formatter_read_object (formatter, &v, buffer, buffer_length, error);
+		g_value_init (value, G_TYPE_OBJECT);
+		if (v)
+			g_value_take_object (value, v);
+	}
+	else {
+		/*
+		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+		             CATALINA_BINARY_FORMATTER_ERROR_BAD_TYPE,
+		             "No such type %d", type_id);
+		*/
+		return FALSE;
+	}
+
+	return success;
 }

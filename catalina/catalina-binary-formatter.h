@@ -70,9 +70,171 @@ struct _CatalinaBinaryFormatterClass
 	GObjectClass parent_class;
 };
 
-GType              catalina_binary_formatter_get_type    (void);
-CatalinaFormatter* catalina_binary_formatter_new         (void);
-GQuark             catalina_binary_formatter_error_quark (void);
+GType              catalina_binary_formatter_get_type      (void);
+CatalinaFormatter* catalina_binary_formatter_new           (void);
+GQuark             catalina_binary_formatter_error_quark   (void);
+gboolean           catalina_binary_formatter_write_boolean (CatalinaBinaryFormatter *formatter,
+                                                            gboolean                 value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_boolean  (CatalinaBinaryFormatter *formatter,
+                                                            gboolean                *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_char    (CatalinaBinaryFormatter *formatter,
+                                                            gchar                    value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_char     (CatalinaBinaryFormatter *formatter,
+                                                            gchar                   *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_uchar   (CatalinaBinaryFormatter *formatter,
+                                                            guchar                   value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_uchar    (CatalinaBinaryFormatter *formatter,
+                                                            guchar                  *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_short   (CatalinaBinaryFormatter *formatter,
+                                                            gshort                   value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_short    (CatalinaBinaryFormatter *formatter,
+                                                            gshort                  *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_ushort  (CatalinaBinaryFormatter *formatter,
+                                                            gushort                  value,
+                                                            gchar                 **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_ushort   (CatalinaBinaryFormatter *formatter,
+                                                            gushort                 *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_int     (CatalinaBinaryFormatter *formatter,
+                                                            gint                     value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_int      (CatalinaBinaryFormatter *formatter,
+                                                            gint                    *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_uint (CatalinaBinaryFormatter *formatter,
+                                                            guint                    value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_uint     (CatalinaBinaryFormatter *formatter,
+                                                            guint                   *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_long    (CatalinaBinaryFormatter *formatter,
+                                                            glong                    value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_long     (CatalinaBinaryFormatter *formatter,
+                                                            glong                   *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_ulong   (CatalinaBinaryFormatter *formatter,
+                                                            gulong                   value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_ulong    (CatalinaBinaryFormatter *formatter,
+                                                            gulong                  *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_int64   (CatalinaBinaryFormatter *formatter,
+                                                            gint64                   value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_int64    (CatalinaBinaryFormatter *formatter,
+                                                            gint64                  *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_uint64  (CatalinaBinaryFormatter *formatter,
+                                                            guint64                  value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_uint64  (CatalinaBinaryFormatter *formatter,
+                                                            guint64                 *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_string  (CatalinaBinaryFormatter *formatter,
+                                                            gchar                   *value,
+                                                            gint                     value_length,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_string   (CatalinaBinaryFormatter  *formatter,
+                                                            gchar                   **value,
+                                                            guint                    *value_length,
+                                                            gchar                    *buffer,
+                                                            guint                     buffer_length,
+                                                            GError                  **error);
+gboolean           catalina_binary_formatter_write_double  (CatalinaBinaryFormatter *formatter,
+                                                            gdouble                  value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_double   (CatalinaBinaryFormatter *formatter,
+                                                            gdouble                 *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_float   (CatalinaBinaryFormatter *formatter,
+                                                            gfloat                   value,
+                                                            gchar                  **buffer,
+                                                            guint                   *buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_read_float    (CatalinaBinaryFormatter *formatter,
+                                                            gfloat                  *value,
+                                                            gchar                   *buffer,
+                                                            guint                    buffer_length,
+                                                            GError                 **error);
+gboolean           catalina_binary_formatter_write_object  (CatalinaBinaryFormatter  *formatter,
+                                                            GObject                  *object,
+                                                            gchar                   **buffer,
+                                                            guint                    *buffer_length,
+                                                            GError                  **error);
+gboolean           catalina_binary_formatter_read_object   (CatalinaBinaryFormatter  *formatter,
+                                                            GObject                 **object,
+                                                            gchar                    *buffer,
+                                                            guint                     buffer_length,
+                                                            GError                  **error);
+gboolean           catalina_binary_formatter_write_value   (CatalinaBinaryFormatter  *formatter,
+                                                            GValue                   *value,
+                                                            gchar                   **buffer,
+                                                            guint                    *buffer_length,
+                                                            GError                  **error);
+gboolean           catalina_binary_formatter_read_value    (CatalinaBinaryFormatter  *formatter,
+                                                            GValue                   *value,
+                                                            gchar                    *buffer,
+                                                            guint                     buffer_length,
+                                                            GError                  **error);
 
 G_END_DECLS
 
