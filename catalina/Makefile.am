@@ -3,6 +3,7 @@ NULL =
 BUILT_SOURCES = catalina-version.h
 
 sources_public_h =						\
+	$(top_srcdir)/catalina/catalina.h			\
 	$(top_srcdir)/catalina/catalina-storage.h		\
 	$(top_srcdir)/catalina/catalina-formatter.h		\
 	$(top_srcdir)/catalina/catalina-binary-formatter.h	\
@@ -23,7 +24,6 @@ sources_c = 							\
 
 catalinaincludedir = $(includedir)/catalina-$(CATALINA_API_VERSION)/catalina
 catalinainclude_DATA =						\
-	$(top_srcdir)/catalina/catalina.h			\
 	$(top_srcdir)/catalina/catalina-version.h		\
 	$(sources_public_h) 					\
 	$(NULL)
