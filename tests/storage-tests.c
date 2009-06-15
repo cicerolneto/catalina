@@ -11,7 +11,7 @@
 #define TEST_KEY_ZLIB  "test-key-zlib"
 #define TEST_DATA_ZLIB "test-data-zlib"
 
-#define TEST_KEY_BINARY "test-key-zlib"
+#define TEST_KEY_BINARY "test-key-binary"
 static gchar *TEST_DATA_BINARY = NULL;
 
 static void
@@ -210,6 +210,7 @@ test15_cb (GObject      *object,
 	if (!catalina_storage_get_value_finish (CATALINA_STORAGE (object), result,
 	                                        &value, &test->error))
 		async_test_error (test);
+	g_assert_cmpstr (g_value_get_string (&value),==,"abc123");
 	async_test_complete (test);
 }
 
@@ -220,7 +221,10 @@ test15 (void)
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	g_assert (catalina_storage_set (storage, TEST_KEY_BINARY, -1, TEST_DATA_BINARY, -1, NULL));
+	GValue v = {0,};
+	g_value_init (&v, G_TYPE_STRING);
+	g_value_set_string (&v, "abc123");
+	g_assert (catalina_storage_set_value (storage, TEST_KEY_BINARY, -1, &v, NULL));
 	catalina_storage_get_value_async (storage, TEST_KEY_BINARY, -1, test15_cb, test);
 	async_test_wait (test);
 	g_assert (catalina_storage_close (storage, NULL));
