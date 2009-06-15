@@ -1,41 +1,18 @@
 Catalina Data Store for GLib
 Christian Hergert <chris@dronelabs.com>
-Last Updated: Monday June 15, 2009
+Last Updated: %%mtime(%A %B %d, %Y)
+%! options: --toc
 
+| Catalina API documentation can be found http://docs.dronelabs.com/catalina/api
 
-------------------------------------------------------------------------
-
-  Introduction
-  Features
-    Future Goals
-  Installation
-    Compiling from Source
-    Ubuntu Linux
-  Examples
-    Asynchronous
-    Synchronous
-  Licensing
-  Authors
-
-------------------------------------------------------------------------
-
-
-  Catalina API documentation can be found http://docs.dronelabs.com/catalina/api
-
-
-  Introduction
-  ============
-
+= Introduction =
 Catalina is a data store for applications that use GLib/GObject.  It can transparently
 serialize data in a cross-endian way including ints, strings, doubles, and objects.
 Along with serialization, Catalina also supports compression to and from storage.
 Currently, Berkeley DB is used for the persistant storage, but this may change in the
 future to a data-store that is commercial-license friendly.
 
-
-  Features
-  ========
-
+= Features =
 - Key/Value storage with string or buffer-based keys
 - Simple and clean API
 - Serialization of GValue's using CatalinaFormatter
@@ -47,9 +24,7 @@ future to a data-store that is commercial-license friendly.
   length.
 
 
-	Future Goals
-	============
-
+== Future Goals ==
 - Alternate indexes for faster access based on user-provided values
 - Object versioning for CatalinaBinaryFormatter to handle translating between a different
   version of GObject in storage compared to runtime.  A good example of this is when a
@@ -57,74 +32,54 @@ future to a data-store that is commercial-license friendly.
   becomes invalid or new data was added.
 
 
-  Installation
-  ============
+= Installation =
 
-
-	Compiling from Source
-	=====================
-
+== Compiling from Source ==
 You can compile Catalina in the standard way for open-source projects on Linux.  If you have
 a non-standard Berkeley DB installation, you can use the --with-bdb-dir= option.  Catalina
 currently requires BDB, glib-2.0 >= 2.16 and iris-1.0 > 0.1.1.
 
 Iris can be retrieved from http://git.dronelabs.com/iris.
 
+```
+$ git clone git://git.dronelabs.com/catalina
+$ cd catalina
+$ ./autogen.sh --prefix=/usr
+$ make
+$ sudo make install
+```
 
-  $ git clone git://git.dronelabs.com/catalina
-  $ cd catalina
-  $ ./autogen.sh --prefix=/usr
-  $ make
-  $ sudo make install
-
-
-
-	Ubuntu Linux
-	============
-
+== Ubuntu Linux ==
 Ubuntu has a much faster installation method.  You may add
-Christian's (http://launchpad.net/~audidude) PPA and install all the dependencies with apt-get.
+[Christian's http://launchpad.net/~audidude] PPA and install all the dependencies with apt-get.
+
+```
+# cat <<EOF >> /etc/apt/sources.list
+> deb http://ppa.launchpad.net/audidude/ppa/ubuntu jaunty main
+> deb-src http://ppa.launchpad.net/audidude/ppa/ubuntu jaunty main
+> EOF
+# apt-get update
+# apt-get install libcatalina-dev libcatalina-doc
+```
+
+= Examples =
+
+== Asynchronous ==
+
+%!include(html): ''async-example.c.html''
+
+== Synchronous ==
+There is a synchronous API, however it is not going to be as fast as the asynchronous API.  It
+uses GMutex and GCond to signal back and forth between the storage threads and the caller thread.
 
 
-  # cat <<EOF >> /etc/apt/sources.list
-  > deb http://ppa.launchpad.net/audidude/ppa/ubuntu jaunty main
-  > deb-src http://ppa.launchpad.net/audidude/ppa/ubuntu jaunty main
-  > EOF
-  # apt-get update
-  # apt-get install libcatalina-dev libcatalina-doc
+%!include(html): ''sync-example.c.html''
 
-
-
-  Examples
-  ========
-
-
-	Asynchronous
-	============
-
-	See docs/catalina.html
-
-
-	Synchronous
-	===========
-
-	There is a synchronous API, however it is not going to be as fast as the asynchronous API.  It
-	uses GMutex and GCond to signal back and forth between the storage threads and the caller thread.
-
-	See docs/catalina.html
-
-
-  Licensing
-  =========
-
+= Licensing =
 Catalina is licensed under the LGPL-2.  However, Berkeley DB has dual licensing which
 requires applications linking against it to be open-source or pay for a commercial
 license.  Therfore, the underlying storage will change from Berkeley DB in the very
 near future.
 
-
-  Authors
-  =======
-
+= Authors =
 Christian Hergert <chris@dronelabs.com>
-
