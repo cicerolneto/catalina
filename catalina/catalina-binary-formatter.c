@@ -148,7 +148,21 @@ catalina_binary_formatter_real_serialize (CatalinaFormatter  *formatter,
                                           gsize              *buffer_length,
                                           GError            **error)
 {
-	return catalina_binary_formatter_write_value ((gpointer)formatter, (GValue*)value, buffer, (guint*)buffer_length, error);
+	gchar *tmp_buf = NULL;
+	guint  tmp_len = 0;
+
+	catalina_binary_formatter_write_value (CATALINA_BINARY_FORMATTER (formatter),
+	                                       (GValue*)value,
+	                                       &tmp_buf, &tmp_len, error);
+
+	*buffer = g_malloc0 (2 + tmp_len);
+	(*buffer) [0] = 0x01; /* Version */
+	(*buffer) [1] = 0x00; /* Flags   */
+	memcpy (*buffer + 2, tmp_buf, tmp_len);
+	*buffer_length = tmp_len + 2;
+	g_free (tmp_buf);
+
+	return TRUE;
 }
 
 static gboolean
@@ -158,7 +172,22 @@ catalina_binary_formatter_real_deserialize (CatalinaFormatter  *formatter,
                                             gsize               buffer_length,
                                             GError            **error)
 {
-	return catalina_binary_formatter_read_value ((gpointer)formatter, value, buffer, (guint)buffer_length, error);
+	gchar    *tmp_buf = NULL;
+	guint     tmp_len = 0;
+
+	if (buffer [0] != 0x01) {
+		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
+		             "Serialization version %d is not supported",
+		             (guchar)buffer [0]);
+		return FALSE;
+	}
+
+	tmp_buf = buffer + 2;
+	tmp_len = buffer_length - 2;
+
+	return catalina_binary_formatter_read_value (CATALINA_BINARY_FORMATTER (formatter),
+	                                             value, tmp_buf, tmp_len, error);
 }
 
 static void
