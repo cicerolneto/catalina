@@ -48,8 +48,11 @@ test4_cb (GObject      *object,
           gpointer      user_data)
 {
 	AsyncTest *test = user_data;
-	test->success = catalina_storage_open_finish ((void*)object, result, &test->error);
-	g_assert (test->success);
+	if ((test->success = catalina_storage_open_finish ((void*)object, result, &test->error))) {
+		GError *error = NULL;
+		if (!catalina_storage_close ((void*)object, &error))
+			g_error ("%s", error->message);
+	}
 	async_test_complete (test);
 }
 
@@ -77,7 +80,10 @@ static void
 test6 (void)
 {
 	CatalinaStorage *storage = catalina_storage_new ();
-	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	GError *error = NULL;
+	if (!catalina_storage_open (storage, ".", "storage-tests.db", &error))
+		g_error ("%s", error->message);
+	catalina_storage_close (storage, NULL);
 }
 
 static void

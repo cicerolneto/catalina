@@ -18,8 +18,11 @@
  * 02110-1301 USA
  */
 
-#include <db.h>
+#include <fcntl.h>
 #include <string.h>
+#include <sys/types.h>
+#include <tdb.h>
+
 #include <iris/iris.h>
 
 #include "catalina-formatter.h"
@@ -816,7 +819,7 @@ catalina_storage_set_async (CatalinaStorage     *storage,
 	task->data_length = dup_value_length;
 
 	message = iris_message_new_data (MESSAGE_SET, G_TYPE_POINTER, task);
-	iris_port_post (priv->cn_port, message);
+	iris_port_post (priv->ex_port, message);
 	iris_message_unref (message);
 }
 
@@ -907,7 +910,7 @@ catalina_storage_set (CatalinaStorage  *storage,
 	task->data_length = (value_length == -1) ? strlen (value) + 1 : value_length;
 
 	message = iris_message_new_data (MESSAGE_SET, G_TYPE_POINTER, task);
-	iris_port_post (priv->cn_port, message);
+	iris_port_post (priv->ex_port, message);
 	iris_message_unref (message);
 
 	success = storage_task_wait (task, error);
@@ -1343,20 +1346,19 @@ handle_open (CatalinaStorage *storage,
 {
 	CatalinaStoragePrivate *priv;
 	StorageTask            *task;
+	TDB_CONTEXT            *db_ctx;
+	gchar                  *dir;
+	gint                    tdb_flags,
+				o_flags;
 
 	g_return_if_fail (storage != NULL);
 	g_return_if_fail (message != NULL && message->what == MESSAGE_OPEN);
 
-	/* NOTE: We use the standard StorageTask structure to do this operation
-	 *   as well.  The env/name is stored in the key as a filename.
-	 *   Splitting it as a file will yield the result back.
-	 */
-
 	priv = storage->priv;
 	task = g_value_get_pointer (iris_message_get_data (message));
 
-	if (priv->db) {
-		/* already open, no need */
+	if (priv->db_ctx) {
+		/* already open, throw error */
 		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 		             CATALINA_STORAGE_ERROR_STATE,
 		             "Storage already opened");
@@ -1364,65 +1366,29 @@ handle_open (CatalinaStorage *storage,
 		return;
 	}
 
-	DB_ENV               *db_env  = NULL;
-	DB                   *db      = NULL;
-	gchar                *errmsg;
-	gchar                *env_dir = NULL,
-	                     *name    = NULL;
-	gint                  ret,
-	                      env_flags = DB_CREATE
-	                                | DB_INIT_LOG
-	                                | DB_INIT_LOCK
-	                                | DB_INIT_MPOOL
-	                                | DB_INIT_TXN
-	                                | DB_PRIVATE;
+	/* make sure the containing directory exists */
+	dir = g_path_get_dirname (task->key);
+	if (!g_file_test (dir, G_FILE_TEST_IS_DIR))
+		g_mkdir_with_parents (dir, 0755);
+	g_free (dir);
 
-	env_dir = g_path_get_dirname (task->key);
-	name = g_path_get_basename (task->key);
+	/* always store in big-endian */
+	tdb_flags  = (G_BYTE_ORDER == G_LITTLE_ENDIAN) ? TDB_CONVERT : 0;
+	tdb_flags |= TDB_NOLOCK;
 
-	if (!g_file_test (env_dir, G_FILE_TEST_IS_DIR))
-		g_mkdir_with_parents (env_dir, 0755);
+	if (!g_file_test (task->key, G_FILE_TEST_IS_REGULAR))
+		o_flags = O_CREAT;
 
-	if ((ret = db_env_create (&db_env, 0)) != 0) {
-		errmsg = g_strdup_printf ("db_env_create: %s", db_strerror (ret));
-		goto error;
+	if (!(db_ctx = tdb_open (task->key, 0, tdb_flags, o_flags | O_RDWR, 0755))) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_DB,
+		             "Could not open the database");
+		storage_task_fail (task);
+		return;
 	}
 
-	db_env->set_errpfx (db_env, "BDB");
-	db_env->set_errfile (db_env, stderr);
-
-	if ((ret = db_env->open (db_env, env_dir, env_flags, 0)) != 0) {
-		errmsg = g_strdup_printf ("db_env_open: %s", db_strerror (ret));
-		goto error;
-	}
-
-	if ((ret = db_create (&db, db_env, 0)) != 0) {
-		errmsg = g_strdup_printf ("db_create: %s", db_strerror (ret));
-		goto error;
-	}
-
-	/* db->set_flags (db, DB_RENUMBER); */
-
-	if ((ret = db->open (db, NULL, name, NULL, DB_BTREE/*DB_RECNO*/, DB_CREATE, 0)) != 0) {
-		errmsg = g_strdup_printf ("db_open: %s", db_strerror (ret));
-		goto error;
-	}
-
-	priv->db = db;
-	priv->db_env = db_env;
+	priv->db_ctx = db_ctx;
 	task->success = TRUE;
-
-	goto finish;
-
-error:
-	g_set_error (&task->error, CATALINA_STORAGE_ERROR,
-	             CATALINA_STORAGE_ERROR_DB,
-	             "%s", db_strerror (ret));
-	g_free (errmsg);
-
-finish:
-	g_free (env_dir);
-	g_free (name);
 	storage_task_succeed (task);
 }
 
@@ -1440,35 +1406,26 @@ handle_close (CatalinaStorage *storage,
 	priv = storage->priv;
 	task = g_value_get_pointer (iris_message_get_data (message));
 
-	if (!priv->db) {
+	if (!priv->db_ctx) {
 		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 		             CATALINA_STORAGE_ERROR_STATE,
 		             "Storage is not currently open");
-		goto error;
+		storage_task_fail (task);
+		return;
 	}
 
-	if ((ret = priv->db->close (priv->db, 0)) != 0) {
+	if ((ret = tdb_close (priv->db_ctx)) != 0) {
 		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 		             CATALINA_STORAGE_ERROR_STATE,
-		             "%s", db_strerror (ret));
-		goto error;
+		             "There was an error closing the storage: (%d)",
+		             ret);
+		storage_task_fail (task);
+		return;
 	}
 
-	if ((priv->db_env->close (priv->db_env, 0)) != 0) {
-		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
-		             CATALINA_STORAGE_ERROR_STATE,
-		             "%s", db_strerror (ret));
-		goto error;
-	}
-
-
-	priv->db = NULL;
-	priv->db_env = NULL;
+	priv->db_ctx = NULL;
+	task->success = TRUE;
 	storage_task_succeed (task);
-	return;
-
-error:
-	storage_task_fail (task);
 }
 
 static void
@@ -1487,7 +1444,7 @@ handle_get (CatalinaStorage *storage,
 	priv = storage->priv;
 	task = g_value_get_pointer (iris_message_get_data (message));
 
-	if (!priv->db) {
+	if (!priv->db_ctx) {
 		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 		             CATALINA_STORAGE_ERROR_STATE,
 		             "Storage is not currently open");
@@ -1496,30 +1453,26 @@ handle_get (CatalinaStorage *storage,
 	}
 
 	{
-		DBT      db_key,
+		TDB_DATA db_key,
 		         db_value;
-		DB_TXN  *txn    = NULL;
-		gint     flags  = 0,
-		         ret;
 
-		CLEAR_DBT (db_key);
-		CLEAR_DBT (db_value);
+		bzero (&db_key, sizeof (db_key));
+		bzero (&db_value, sizeof (db_value));
 
-		db_key.data = task->key;
-		db_key.size = task->key_length != -1 ? task->key_length : strlen (task->key) + 1;
-		db_key.ulen = db_key.size;
-		db_key.flags = DB_DBT_USERMEM;
-		db_value.flags = DB_DBT_MALLOC;
+		db_key.dptr = (guchar*)task->key;
+		db_key.dsize = task->key_length;
 
-		if ((ret = priv->db->get (priv->db, txn, &db_key, &db_value, flags)) != 0) {
+		db_value = tdb_fetch (priv->db_ctx, db_key);
+
+		if (!db_value.dptr) {
 			g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 			             CATALINA_STORAGE_ERROR_NO_SUCH_KEY,
-			             "%s", db_strerror (ret));
+			             "%s", tdb_errorstr (priv->db_ctx));
 		}
 		else {
 			if (priv->transform) {
 				if (catalina_transform_read (priv->transform,
-				                             db_value.data, db_value.size,
+				                             (gchar*)db_value.dptr, db_value.dsize,
 				                             &buffer, &buffer_length,
 				                             &task->error))
 				{
@@ -1533,14 +1486,11 @@ handle_get (CatalinaStorage *storage,
 			else {
 			copy:
 				success = TRUE;
-				task->data_length = db_value.size;
+				task->data_length = db_value.dsize;
 				task->data = g_malloc (task->data_length);
-				memcpy (task->data, db_value.data, task->data_length);
+				memcpy (task->data, db_value.dptr, task->data_length);
 			}
 		}
-
-		FREE_DBT (db_key);
-		FREE_DBT (db_value);
 	}
 
 	if (success)
@@ -1565,7 +1515,7 @@ handle_set (CatalinaStorage *storage,
 	priv = storage->priv;
 	task = g_value_get_pointer (iris_message_get_data (message));
 
-	if (!priv->db) {
+	if (!priv->db_ctx) {
 		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 		             CATALINA_STORAGE_ERROR_STATE,
 		             "Storage is not currently open");
@@ -1577,49 +1527,40 @@ handle_set (CatalinaStorage *storage,
 		if (!catalina_transform_write (priv->transform,
 		                               task->data, task->data_length,
 		                               &buffer, &buffer_length,
-		                               &task->error))
-		{
+		                               &task->error)) {
 			storage_task_fail (task);
 			return;
 		}
 	}
 
 	{
-		DBT      db_key,
-		         db_value;
-		DB_TXN  *txn   = NULL;
+		TDB_DATA key,
+			 dbuf;
 		gint     flags = 0,
 		         ret;
-		gchar   *errmsg;
 
-		CLEAR_DBT (db_key);
-		CLEAR_DBT (db_value);
+		bzero (&key, sizeof (key));
+		bzero (&dbuf, sizeof (dbuf));
 
-		db_key.data = task->key;
-		db_key.size = task->key_length;
-		db_key.ulen = db_key.size;
-		db_key.flags = DB_DBT_USERMEM;
-		db_value.data = buffer != NULL ? buffer : task->data;
-		db_value.size = buffer != NULL ? buffer_length : task->data_length;
-		db_value.ulen = db_value.size;
-		db_value.flags = DB_DBT_USERMEM;
+		key.dptr = (guchar*)task->key;
+		key.dsize = task->key_length;
+		dbuf.dptr = (guchar*)(buffer != NULL ? buffer : task->data);
+		dbuf.dsize = buffer != NULL ? buffer_length : task->data_length;
 
-		if ((ret = priv->db->put (priv->db, txn, &db_key, &db_value, flags)) != 0) {
-			errmsg = db_strerror (ret);
+		flags = TDB_REPLACE;
+
+		if ((ret = tdb_store (priv->db_ctx, key, dbuf, flags)) != 0) {
 			g_set_error (&task->error, CATALINA_STORAGE_ERROR,
 			             CATALINA_STORAGE_ERROR_NO_SUCH_KEY,
-			             "db->put: %s", errmsg);
-			g_free (errmsg);
+			             "tdb_store: %s",
+			             tdb_errorstr (priv->db_ctx));
 		}
 		else {
 			success = TRUE;
 		}
-
-		if (buffer)
-			g_free (buffer);
-		FREE_DBT (db_key);
-		FREE_DBT (db_value);
 	}
+
+	g_free (buffer);
 
 	if (success)
 		storage_task_succeed (task);
@@ -1635,9 +1576,6 @@ catalina_storage_cn_handle_message (IrisMessage     *message,
 	case MESSAGE_GET:
 		handle_get (storage, message);
 		break;
-	case MESSAGE_SET:
-		handle_set (storage, message);
-		break;
 	default:
 		g_warning ("Invalid message sent to storage: %d", message->what);
 	}
@@ -1648,6 +1586,9 @@ catalina_storage_ex_handle_message (IrisMessage     *message,
                                     CatalinaStorage *storage)
 {
 	switch (message->what) {
+	case MESSAGE_SET:
+		handle_set (storage, message);
+		break;
 	case MESSAGE_OPEN:
 		handle_open (storage, message);
 		break;

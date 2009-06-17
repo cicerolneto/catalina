@@ -21,7 +21,8 @@
 #ifndef __CATALINA_STORAGE_PRIVATE_H__
 #define __CATALINA_STORAGE_PRIVATE_H__
 
-#include <db.h>
+#include <sys/types.h>
+#include <tdb.h>
 #include <glib-object.h>
 #include <iris/iris.h>
 
@@ -35,8 +36,7 @@ typedef struct _StorageTask StorageTask;
 
 struct _CatalinaStoragePrivate
 {
-	DB_ENV            *db_env;
-	DB                *db;
+	TDB_CONTEXT       *db_ctx;
 	gboolean           use_idle;
 	guint              flags;
 

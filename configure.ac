@@ -53,7 +53,7 @@ AC_PATH_PROG([GLIB_GENMARSHAL], [glib-genmarshal])
 AC_PATH_PROG([GTESTER], [gtester])
 AC_PATH_PROG([GTESTER_REPORT], [gtester-report])
 
-PKG_CHECK_MODULES(CATALINA, gobject-2.0 >= glib_req_version iris-1.0 >= iris_req_version)
+PKG_CHECK_MODULES(CATALINA, gobject-2.0 >= glib_req_version iris-1.0 >= iris_req_version tdb >= 1.1.3)
 AC_SUBST(CATALINA_CFLAGS)
 AC_SUBST(CATALINA_LIBS)
 
@@ -61,12 +61,6 @@ AM_CONDITIONAL(ENABLE_GLIB_TEST, test "x$enable_glibtest" = "xyes")
 
 CHECK_ZLIB()
 AM_CONDITIONAL(HAVE_LIBZ, test "x$zlib_cv_libz" = "xyes")
-
-AX_PATH_BDB([4.6],[
-	LIBS="$BDB_LIBS"
-	LDFLAGS="$BDB_LDFLAGS $LDFLAGS"
-	CPPFLAGS="$CPPFLAGS $BDB_CPPFLAGS"],
-	AC_MSG_ERROR([Berkeley DB not found]))
 
 dnl = Enable strict compiler flags =========================================
 # use strict compiler flags only on development releases

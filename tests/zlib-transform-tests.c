@@ -26,6 +26,7 @@ test2 (void)
 	g_assert (catalina_storage_get (storage, TEST_KEY_STRING, -1, &outbuf, &outlen, NULL));
 	g_assert_cmpint (outlen,==,strlen (TEST_DATA_STRING) + 1);
 	g_assert_cmpstr (outbuf,==,TEST_DATA_STRING);
+	g_assert (catalina_storage_close (storage, NULL));
 }
 
 static void
@@ -40,6 +41,7 @@ test3 (void)
 	g_assert (catalina_storage_get (storage, LONG_TEST_KEY, -1, &outbuf, &outlen, NULL));
 	g_assert_cmpint (outlen,==,strlen (LONG_TEST_DATA) + 1);
 	g_assert_cmpstr (outbuf,==,LONG_TEST_DATA);
+	g_assert (catalina_storage_close (storage, NULL));
 }
 
 static void
@@ -58,6 +60,7 @@ test4 (void)
 	if (!catalina_storage_get_value (storage, "v-key", -1, &v2, &error))
 		g_error ("%s", error->message);
 	g_assert_cmpstr (g_value_get_string(&v1),==,g_value_get_string(&v2));
+	g_assert (catalina_storage_close (storage, NULL));
 }
 
 gint
