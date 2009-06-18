@@ -157,17 +157,19 @@ gboolean         catalina_storage_set_value        (CatalinaStorage       *stora
                                                     const GValue          *value,
                                                     GError               **error);
 
-gboolean         catalina_storage_get_use_idle    (CatalinaStorage   *storage);
-void             catalina_storage_set_use_idle    (CatalinaStorage   *storage,
-                                                   gboolean           use_idle);
-CatalinaFormatter* catalina_storage_get_formatter (CatalinaStorage   *storage);
-void               catalina_storage_set_formatter (CatalinaStorage   *storage,
-                                                   CatalinaFormatter *formatter);
-CatalinaTransform* catalina_storage_get_transform (CatalinaStorage   *storage);
-void               catalina_storage_set_transform (CatalinaStorage   *storage,
-                                                   CatalinaTransform *transform);
+gboolean         catalina_storage_get_use_idle     (CatalinaStorage   *storage);
+void             catalina_storage_set_use_idle     (CatalinaStorage   *storage,
+                                                    gboolean           use_idle);
+CatalinaFormatter*
+                 catalina_storage_get_formatter    (CatalinaStorage   *storage);
+void             catalina_storage_set_formatter    (CatalinaStorage   *storage,
+                                                    CatalinaFormatter *formatter);
+CatalinaTransform*
+                 catalina_storage_get_transform    (CatalinaStorage   *storage);
+void             catalina_storage_set_transform    (CatalinaStorage   *storage,
+                                                    CatalinaTransform *transform);
 
-GQuark             catalina_storage_error_quark   (void);
+GQuark           catalina_storage_error_quark      (void);
 
 G_END_DECLS
 
