@@ -76,6 +76,17 @@ fi
 
 AC_SUBST(CATALINA_MAINTAINER_CFLAGS)
 
+dnl = Enable Vala ==========================================================
+enable_vala=no
+PKG_CHECK_MODULES(VALA, vala-1.0, enable_vala=yes, enable_vala=no)
+if test "x$enable_vala" = "xyes"; then
+	VAPI_DIR=`pkg-config --variable=vapidir vala-1.0`
+else
+	VAPI_DIR=
+fi
+AM_CONDITIONAL(ENABLE_VALA, [test "x$enable_vala" = "xyes"])
+AC_SUBST(VAPI_DIR)
+
 dnl = Check for GObject Introspection ======================================
 
 AC_MSG_CHECKING([whether GObject introspection is requested])
@@ -115,10 +126,14 @@ AC_CONFIG_FILES([
 	Makefile
 	catalina/Makefile
 	catalina/catalina-version.h
-	tests/Makefile
+	bindings/Makefile
+	bindings/vala/Makefile
+	examples/Makefile
+	examples/beatdown/Makefile
 	doc/Makefile
 	doc/reference/Makefile
 	doc/reference/version.xml
+	tests/Makefile
 	catalina.pc
 ])
 
@@ -133,6 +148,7 @@ echo "   Maintainer Compiler flags:  ${enable_maintainer_flags}"
 echo "   Build API reference......:  ${enable_gtk_doc}"
 echo "   Enable test suite........:  ${enable_glibtest}"
 echo "   GObject Introspection....:  ${enable_introspection}"
+echo "   Vala bindings............:  ${enable_vala}"
 echo ""
 
 if test "x$enable_introspection" = "xyes"; then

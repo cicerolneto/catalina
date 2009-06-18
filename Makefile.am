@@ -1,4 +1,4 @@
-SUBDIRS = catalina doc
+SUBDIRS = catalina bindings doc
 
 if ENABLE_GLIB_TEST
 SUBDIRS += tests
