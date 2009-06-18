@@ -328,6 +328,15 @@ test20 (void)
 	g_assert_cmpstr (mock_person_get_birth_date (person),==,"August 16th, 1984");
 }
 
+static void
+test21 (void)
+{
+	CatalinaStorage * storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	g_assert_cmpint (catalina_storage_count_keys (storage),>,1);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -361,6 +370,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/set_value(2)", test19);
 	g_test_add_func ("/CatalinaStorage/get_value(1)", test18);
 	g_test_add_func ("/CatalinaStorage/get_value(2)", test20);
+	g_test_add_func ("/CatalinaStorage/count_keys(1)", test21);
 
 	return g_test_run ();
 }

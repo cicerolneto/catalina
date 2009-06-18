@@ -171,6 +171,8 @@ void             catalina_storage_set_transform    (CatalinaStorage   *storage,
 
 GQuark           catalina_storage_error_quark      (void);
 
+gulong           catalina_storage_count_keys       (CatalinaStorage   *storage);
+
 G_END_DECLS
 
 #endif /* __CATALINA_STORAGE_H__ */
