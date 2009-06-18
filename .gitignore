@@ -49,3 +49,5 @@ tests/zlib-transform-tests
 tests/storage-tests.db
 tests/log.*
 debian
+examples/beatdown/beatdown
+examples/beatdown/beatdown.db
