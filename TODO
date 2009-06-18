@@ -1,0 +1,17 @@
+----------------------------------------------------------------------------
+TODO for Catalina 0.2.0
+----------------------------------------------------------------------------
+
+CatalinaStorage
+
+    - Add transactions.
+    - Add custom indexes.
+    - Add property for retrieving the number of keys.
+    - Add method for traversing key/value pairs and give ability to do it in
+      parallel or serial.
+
+CatalinaZlibTransform
+
+    - Add watermark property
+    - Add compression level property
+
