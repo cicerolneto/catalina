@@ -179,11 +179,15 @@ catalina_storage_dispose (GObject *object)
 
 	priv = CATALINA_STORAGE (object)->priv;
 
-	g_object_unref (priv->transform);
-	priv->transform = NULL;
+	if (priv->transform) {
+		g_object_unref (priv->transform);
+		priv->transform = NULL;
+	}
 
-	g_object_unref (priv->formatter);
-	priv->formatter = NULL;
+	if (priv->formatter) {
+		g_object_unref (priv->formatter);
+		priv->formatter = NULL;
+	}
 }
 
 static void
