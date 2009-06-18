@@ -1593,7 +1593,8 @@ catalina_binary_formatter_read_value (CatalinaBinaryFormatter  *formatter,
 		GObject *v = NULL;
 		success = catalina_binary_formatter_read_object (formatter, &v, buffer, buffer_length, error);
 		if (v) {
-			g_value_init (value, G_TYPE_FROM_INSTANCE (v));
+			if (!G_VALUE_TYPE (value))
+				g_value_init (value, G_TYPE_FROM_INSTANCE (v));
 			g_value_take_object (value, v);
 		}
 	}
