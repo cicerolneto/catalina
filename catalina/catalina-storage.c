@@ -1367,6 +1367,124 @@ catalina_storage_count_keys (CatalinaStorage *storage)
 	return count;
 }
 
+/**
+ * catalina_storage_transaction_begin:
+ * @storage: A #CatalinaStorage
+ *
+ * Begins a new transaction.  Transactions may be recursive, however #CatalinaStorage does not
+ * support concurrent transactions.  Therefore, you may only have a single transaction at a time.
+ */
+void
+catalina_storage_transaction_begin (CatalinaStorage *storage)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+
+	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+
+	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+
+	message = iris_message_new_data (MESSAGE_TXN_BEGIN, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	iris_message_unref (message);
+
+	storage_task_wait (task, NULL);
+	storage_task_free (task, FALSE, FALSE);
+}
+
+/**
+ * catalina_storage_transaction_commit:
+ * @storage: A #CatalinaStorage
+ * @error: A location for a #GError or %NULL
+ *
+ *
+ * Upon failure, %FALSE is returned and @error is set.  If you want to bring the storage back to a
+ * consistent state, call catalina_storage_transaction_rollback().
+ *
+ * Return value: %TRUE on success
+ */
+gboolean
+catalina_storage_transaction_commit (CatalinaStorage  *storage,
+                                     GError          **error)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+	gboolean                success;
+
+	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), FALSE);
+
+	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+
+	message = iris_message_new_data (MESSAGE_TXN_COMMIT, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	iris_message_unref (message);
+
+	success = storage_task_wait (task, error);
+	storage_task_free (task, FALSE, FALSE);
+
+	return success;
+}
+
+/**
+ * catalina_storage_transaction_cancel:
+ * @storage: A #CatalinaStorage
+ *
+ * Cancels the current transaction on the storage.  There is no need to call
+ * catalina_storage_transaction_rollback() as the state will be rolled back automatically.
+ */
+void
+catalina_storage_transaction_cancel (CatalinaStorage *storage)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+
+	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+
+	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+
+	message = iris_message_new_data (MESSAGE_TXN_CANCEL, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	iris_message_unref (message);
+
+	storage_task_wait (task, NULL);
+	storage_task_free (task, FALSE, FALSE);
+}
+
+/**
+ * catalina_storage_transaction_rollback:
+ * @storage: A #CatalinaStorage
+ *
+ * Rolls back the current transaction.  When this method exits, the storage will be back to the
+ * state before the transaction was started with catalina_storage_transaction_begin().
+ *
+ * #CatalinaStorage does not support concurrent transactions.
+ */
+void
+catalina_storage_transaction_rollback (CatalinaStorage *storage)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+
+	g_return_if_fail (CATALINA_IS_STORAGE (storage));
+
+	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+
+	message = iris_message_new_data (MESSAGE_TXN_ROLLBACK, G_TYPE_POINTER, task);
+	iris_port_post (priv->ex_port, message);
+	iris_message_unref (message);
+
+	storage_task_wait (task, NULL);
+	storage_task_free (task, FALSE, FALSE);
+}
+
 GQuark
 catalina_storage_error_quark (void)
 {
@@ -1640,6 +1758,98 @@ handle_count_keys (CatalinaStorage *storage,
 }
 
 static void
+handle_txn_begin (CatalinaStorage *storage,
+                  IrisMessage     *message)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+
+	g_return_if_fail (message->what == MESSAGE_TXN_BEGIN);
+	g_return_if_fail (storage != NULL);
+
+	priv = storage->priv;
+	task = g_value_get_pointer (iris_message_get_data (message));
+
+	if (priv->db_ctx)
+		tdb_transaction_start (priv->db_ctx);
+	else
+		g_warning ("Cannot begin transaction, storage not open");
+
+	storage_task_succeed (task);
+}
+
+static void
+handle_txn_commit (CatalinaStorage *storage,
+                   IrisMessage     *message)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+
+	g_return_if_fail (message->what == MESSAGE_TXN_COMMIT);
+	g_return_if_fail (storage != NULL);
+
+	priv = storage->priv;
+	task = g_value_get_pointer (iris_message_get_data (message));
+
+	if (!priv->db_ctx) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_STATE,
+		             "Cannot commit txn, storage not open");
+		storage_task_fail (task);
+		return;
+	}
+
+	if (tdb_transaction_commit (priv->db_ctx) != 0) {
+		g_set_error (&task->error, CATALINA_STORAGE_ERROR,
+		             CATALINA_STORAGE_ERROR_DB,
+		             "Cannot commit txn: %s",
+		             tdb_errorstr (priv->db_ctx));
+		storage_task_fail (task);
+		return;
+	}
+
+	storage_task_succeed (task);
+}
+
+static void
+handle_txn_cancel (CatalinaStorage *storage,
+                   IrisMessage     *message)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+
+	g_return_if_fail (message->what == MESSAGE_TXN_CANCEL);
+	g_return_if_fail (storage != NULL);
+
+	priv = storage->priv;
+	task = g_value_get_pointer (iris_message_get_data (message));
+
+	if (priv->db_ctx)
+		tdb_transaction_cancel (priv->db_ctx);
+
+	storage_task_succeed (task);
+}
+
+static void
+handle_txn_rollback (CatalinaStorage *storage,
+                     IrisMessage     *message)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+
+	g_return_if_fail (message->what == MESSAGE_TXN_ROLLBACK);
+	g_return_if_fail (storage != NULL);
+
+	priv = storage->priv;
+	task = g_value_get_pointer (iris_message_get_data (message));
+
+	if (priv->db_ctx)
+		tdb_transaction_recover (priv->db_ctx);
+
+	storage_task_succeed (task);
+}
+
+static void
 catalina_storage_cn_handle_message (IrisMessage     *message,
                                     CatalinaStorage *storage)
 {
@@ -1668,6 +1878,18 @@ catalina_storage_ex_handle_message (IrisMessage     *message,
 		break;
 	case MESSAGE_CLOSE:
 		handle_close (storage, message);
+		break;
+	case MESSAGE_TXN_BEGIN:
+		handle_txn_begin (storage, message);
+		break;
+	case MESSAGE_TXN_COMMIT:
+		handle_txn_commit (storage, message);
+		break;
+	case MESSAGE_TXN_CANCEL:
+		handle_txn_cancel (storage, message);
+		break;
+	case MESSAGE_TXN_ROLLBACK:
+		handle_txn_rollback (storage, message);
 		break;
 	default:
 		g_warning ("Invalid exclusive message: %d", message->what);

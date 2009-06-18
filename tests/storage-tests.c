@@ -331,9 +331,48 @@ test20 (void)
 static void
 test21 (void)
 {
-	CatalinaStorage * storage = catalina_storage_new ();
+	CatalinaStorage *storage = catalina_storage_new ();
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
 	g_assert_cmpint (catalina_storage_count_keys (storage),>,1);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test22 (void)
+{
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_transaction_begin (storage);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test23 (void)
+{
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_transaction_begin (storage);
+	g_assert (catalina_storage_transaction_commit (storage, NULL));
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test24 (void)
+{
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_transaction_begin (storage);
+	catalina_storage_transaction_cancel (storage);
+	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test25 (void)
+{
+	CatalinaStorage *storage = catalina_storage_new ();
+	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
+	catalina_storage_transaction_begin (storage);
+	catalina_storage_transaction_rollback (storage);
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
@@ -371,6 +410,10 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/get_value(1)", test18);
 	g_test_add_func ("/CatalinaStorage/get_value(2)", test20);
 	g_test_add_func ("/CatalinaStorage/count_keys(1)", test21);
+	g_test_add_func ("/CatalinaStorage/transaction_begin(1)", test22);
+	g_test_add_func ("/CatalinaStorage/transaction_commit(1)", test23);
+	g_test_add_func ("/CatalinaStorage/transaction_cancel(1)", test24);
+	g_test_add_func ("/CatalinaStorage/transaction_rollback(1)", test25);
 
 	return g_test_run ();
 }

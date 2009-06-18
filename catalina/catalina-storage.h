@@ -173,6 +173,12 @@ GQuark           catalina_storage_error_quark      (void);
 
 gulong           catalina_storage_count_keys       (CatalinaStorage   *storage);
 
+void             catalina_storage_transaction_begin    (CatalinaStorage   *storage);
+gboolean         catalina_storage_transaction_commit   (CatalinaStorage   *storage,
+                                                        GError           **error);
+void             catalina_storage_transaction_cancel   (CatalinaStorage   *storage);
+void             catalina_storage_transaction_rollback (CatalinaStorage   *storage);
+
 G_END_DECLS
 
 #endif /* __CATALINA_STORAGE_H__ */
