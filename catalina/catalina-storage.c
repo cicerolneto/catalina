@@ -1485,14 +1485,14 @@ handle_get (CatalinaStorage *storage,
 					success = TRUE;
 					task->data = buffer;
 					task->data_length = buffer_length;
+					g_free (db_value.dptr);
 				}
 			}
 			else {
 			copy:
 				success = TRUE;
+				task->data = (gchar*)db_value.dptr;
 				task->data_length = db_value.dsize;
-				task->data = g_malloc (task->data_length);
-				memcpy (task->data, db_value.dptr, task->data_length);
 			}
 		}
 	}
