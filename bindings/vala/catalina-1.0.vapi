@@ -56,6 +56,12 @@ namespace Catalina {
 		public bool set (string key, size_t key_length, string value, size_t value_length) throws Catalina.StorageError;
 		public bool get_value (string key, size_t key_length, Value value) throws Catalina.StorageError;
 		public bool set_value (string key, size_t key_length, Value value) throws Catalina.StorageError;
+
+		/* transaction control */
+		public void transaction_begin ();
+		public bool transaction_commit () throws Catalina.StorageError;
+		public void transaction_cancel ();
+		public void transaction_rollback ();
 	}
 
 	public class Transform: GLib.Object {
