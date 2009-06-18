@@ -1334,6 +1334,39 @@ catalina_storage_set_formatter (CatalinaStorage   *storage,
 	g_object_notify (G_OBJECT (storage), "formatter");
 }
 
+/**
+ * catalina_storage_count_keys:
+ * @storage: A #CatalinaStorage
+ *
+ * Counts the number of keys that are currently in the database.
+ *
+ * Return value: the current number of keys
+ */
+gulong
+catalina_storage_count_keys (CatalinaStorage *storage)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+	IrisMessage            *message;
+	gulong                  count = 0;
+
+	g_return_val_if_fail (CATALINA_IS_STORAGE (storage), 0);
+
+	priv = storage->priv;
+	task = storage_task_new (storage, FALSE, NULL, NULL, NULL);
+
+	message = iris_message_new_data (MESSAGE_COUNT_KEYS, G_TYPE_POINTER, task);
+	iris_port_post (priv->cn_port, message);
+	iris_message_unref (message);
+
+	if (storage_task_wait (task, NULL))
+		count = g_value_get_ulong (&task->value);
+
+	storage_task_free (task, FALSE, FALSE);
+
+	return count;
+}
+
 GQuark
 catalina_storage_error_quark (void)
 {
@@ -1572,6 +1605,40 @@ handle_set (CatalinaStorage *storage,
 		storage_task_fail (task);
 }
 
+static gint
+handle_count_keys_cb (TDB_CONTEXT *context,
+                      TDB_DATA     key,
+                      TDB_DATA     value,
+                      gpointer     user_data)
+{
+	gulong *count = user_data;
+	(*count)++;
+	return 0;
+}
+
+static void
+handle_count_keys (CatalinaStorage *storage,
+                   IrisMessage     *message)
+{
+	CatalinaStoragePrivate *priv;
+	StorageTask            *task;
+
+	g_return_if_fail (message->what == MESSAGE_COUNT_KEYS);
+	g_return_if_fail (storage != NULL);
+
+	priv = storage->priv;
+	task = g_value_get_pointer (iris_message_get_data (message));
+	g_value_init (&task->value, G_TYPE_ULONG);
+
+	if (priv->db_ctx) {
+		gulong count = 0;
+		tdb_traverse (priv->db_ctx, handle_count_keys_cb, &count);
+		g_value_set_ulong (&task->value, count);
+	}
+
+	storage_task_succeed (task);
+}
+
 static void
 catalina_storage_cn_handle_message (IrisMessage     *message,
                                     CatalinaStorage *storage)
@@ -1579,6 +1646,9 @@ catalina_storage_cn_handle_message (IrisMessage     *message,
 	switch (message->what) {
 	case MESSAGE_GET:
 		handle_get (storage, message);
+		break;
+	case MESSAGE_COUNT_KEYS:
+		handle_count_keys (storage, message);
 		break;
 	default:
 		g_warning ("Invalid message sent to storage: %d", message->what);

@@ -33,6 +33,8 @@ namespace Catalina {
 		public Catalina.Transform transform { get; set; }
 		public Catalina.Formatter formatter { get; set; }
 
+		public ulong count_keys ();
+
 		/* asynchronous methods */
 		public void open_async (string env_dir, string name, GLib.AsyncReadyCallback callback);
 		public bool open_finish (GLib.AsyncResult result) throws Catalina.StorageError;
