@@ -68,9 +68,15 @@ struct _CatalinaZlibTransformClass
 	GObjectClass parent_class;
 };
 
-GType              catalina_zlib_transform_get_type    (void);
-CatalinaTransform* catalina_zlib_transform_new         (void);
-GQuark             catalina_zlib_transform_error_quark (void);
+GType              catalina_zlib_transform_get_type      (void);
+CatalinaTransform* catalina_zlib_transform_new           (void);
+GQuark             catalina_zlib_transform_error_quark   (void);
+gint               catalina_zlib_transform_get_level     (CatalinaZlibTransform *transform);
+void               catalina_zlib_transfrom_set_level     (CatalinaZlibTransform *transform,
+                                                          gint                   level);
+gint               catalina_zlib_transform_get_watermark (CatalinaZlibTransform *transform);
+void               catalina_zlib_transfrom_set_watermark (CatalinaZlibTransform *transform,
+                                                          gint                   watermark);
 
 G_END_DECLS
 

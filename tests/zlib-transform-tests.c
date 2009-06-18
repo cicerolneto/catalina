@@ -63,6 +63,26 @@ test4 (void)
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
+static void
+test5 (void)
+{
+	gint level = 0;
+	CatalinaTransform *t = catalina_zlib_transform_new ();
+	g_object_set (t, "level", 9, NULL);
+	g_object_get (t, "level", &level, NULL);
+	g_assert_cmpint (level,==,9);
+}
+
+static void
+test6 (void)
+{
+	gint watermark = 0;
+	CatalinaTransform *t = catalina_zlib_transform_new ();
+	g_object_set (t, "watermark", 9, NULL);
+	g_object_get (t, "watermark", &watermark, NULL);
+	g_assert_cmpint (watermark,==,9);
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -75,6 +95,8 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaZlibTransform/read-write(1)", test2);
 	g_test_add_func ("/CatalinaZlibTransform/read-write(2)", test3);
 	g_test_add_func ("/CatalinaZlibTransform/read-write(3)", test4);
+	g_test_add_func ("/CatalinaZlibTransform/:level", test5);
+	g_test_add_func ("/CatalinaZlibTransform/:watermark", test6);
 
 	return g_test_run ();
 }

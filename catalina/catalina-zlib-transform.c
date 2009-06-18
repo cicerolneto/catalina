@@ -46,6 +46,13 @@
  * ourselves lots of allocations and joining into a single buffer later.
  */
 
+enum
+{
+	PROP_0,
+	PROP_LEVEL,
+	PROP_WATERMARK,
+};
+
 static void catalina_zlib_transform_base_init (CatalinaTransformIface *iface);
 
 G_DEFINE_TYPE_EXTENDED (CatalinaZlibTransform,
@@ -61,6 +68,42 @@ struct _CatalinaZlibTransformPrivate
 	guint level;
 };
 
+/**
+ * catalina_zlib_transform_set_level:
+ * @transform: A #CatalinaZlibTransform
+ * @level: the compression level
+ *
+ * Sets the compression level to use by the zlib compressor.
+ */
+void
+catalina_zlib_transform_set_level (CatalinaZlibTransform *transform,
+                                   gint                   level)
+
+
+{
+	g_return_if_fail (CATALINA_IS_ZLIB_TRANSFORM (transform));
+	transform->priv->level = level;
+}
+
+/**
+ * catalina_zlib_transform_set_watermark:
+ * @transform: A #CatalinaZlibTransform
+ * @level: the watermark
+ *
+ * Sets the watermark to use by the zlib compressor.
+ *
+ * If the amount of data to be compressed is smaller than @watermark in bytes, then the data will
+ * not be compressed.  This is useful for small objects where the size compressed is larger than the
+ * data lone.
+ */
+void
+catalina_zlib_transform_set_watermark (CatalinaZlibTransform *transform,
+                                       gint                   watermark)
+{
+	g_return_if_fail (CATALINA_IS_ZLIB_TRANSFORM (transform));
+	transform->priv->watermark = watermark;
+}
+
 static void
 catalina_zlib_transform_get_property (GObject    *object,
                                       guint       property_id,
@@ -68,6 +111,12 @@ catalina_zlib_transform_get_property (GObject    *object,
                                       GParamSpec *pspec)
 {
 	switch (property_id) {
+	case PROP_LEVEL:
+		g_value_set_int (value, catalina_zlib_transform_get_level (CATALINA_ZLIB_TRANSFORM (object)));
+		break;
+	case PROP_WATERMARK:
+		g_value_set_int (value, catalina_zlib_transform_get_watermark (CATALINA_ZLIB_TRANSFORM (object)));
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
 	}
@@ -80,6 +129,12 @@ catalina_zlib_transform_set_property (GObject      *object,
                                       GParamSpec   *pspec)
 {
 	switch (property_id) {
+	case PROP_LEVEL:
+		catalina_zlib_transform_set_level (CATALINA_ZLIB_TRANSFORM (object), g_value_get_int (value));
+		break;
+	case PROP_WATERMARK:
+		catalina_zlib_transform_set_watermark (CATALINA_ZLIB_TRANSFORM (object), g_value_get_int (value));
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
 	}
@@ -108,6 +163,37 @@ catalina_zlib_transform_class_init (CatalinaZlibTransformClass *klass)
 	object_class->get_property = catalina_zlib_transform_get_property;
 	object_class->finalize     = catalina_zlib_transform_finalize;
 	object_class->dispose      = catalina_zlib_transform_dispose;
+
+	/**
+	 * CatalinaZlibTransform:level:
+	 *
+	 * The zlib compression level.
+	 */
+	g_object_class_install_property (object_class,
+	                                 PROP_LEVEL,
+	                                 g_param_spec_int ("level",
+	                                                   "Level",
+	                                                   "The zlib compression level",
+	                                                   0,
+	                                                   9,
+	                                                   6,
+	                                                   G_PARAM_READWRITE));
+
+	/**
+	 * CatalinaZlibTransform:watermark:
+	 *
+	 * The watermark (in bytes) for compression.  The buffer must be larger than the watermark
+	 * before it will be compressed.
+	 */
+	g_object_class_install_property (object_class,
+	                                 PROP_WATERMARK,
+	                                 g_param_spec_int ("watermark",
+	                                                   "Watermark",
+	                                                   "The compression watermark",
+	                                                   0,
+	                                                   G_MAXINT,
+	                                                   0,
+	                                                   G_PARAM_READWRITE));
 }
 
 static void
@@ -316,4 +402,35 @@ GQuark
 catalina_zlib_transform_error_quark (void)
 {
 	return g_quark_from_static_string ("catalina-zlib-transform-error-quark");
+}
+
+/**
+ * catalina_zlib_transform_get_level:
+ * @transform: A #CatalinaZlibTransform
+ *
+ * Retrieves the current compression level.
+ *
+ * Return value: a #gint containing the compression level
+ */
+gint
+catalina_zlib_transform_get_level (CatalinaZlibTransform *transform)
+{
+	g_return_val_if_fail (CATALINA_IS_ZLIB_TRANSFORM (transform), 0);
+	return transform->priv->level;
+}
+
+/**
+ * catalina_zlib_transform_get_watermark:
+ * @transform: A #CatalinaZlibTransform
+ *
+ * Retrieves the current watermark.  The watermark is used to prevent compression of objects
+ * smaller than or equal to the level in bytes.
+ *
+ * Return value: a #gint containing the watermark
+ */
+gint
+catalina_zlib_transform_get_watermark (CatalinaZlibTransform *transform)
+{
+	g_return_val_if_fail (CATALINA_IS_ZLIB_TRANSFORM (transform), 0);
+	return transform->priv->watermark;
 }

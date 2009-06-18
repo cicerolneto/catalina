@@ -10,8 +10,3 @@ CatalinaStorage
     - Add method for traversing key/value pairs and give ability to do it in
       parallel or serial.
 
-CatalinaZlibTransform
-
-    - Add watermark property
-    - Add compression level property
-
