@@ -29,6 +29,11 @@ typedef struct
 	GMutex   *mutex;
 	GCond    *cond;
 	GError   *error;
+
+	gulong    txn1;
+	gulong    txn2;
+	gulong    txn3;
+	gulong    txn4;
 } AsyncTest;
 
 static void
@@ -68,7 +73,7 @@ async_test_error (AsyncTest *test)
 {
 	g_return_if_fail (test != NULL);
 	if (!test->success && test->error != NULL)
-		g_error ("%s", test->error->message);
+		g_error ("%s", test->error->message != NULL ? test->error->message : "No Error Message");
 	g_mutex_lock (test->mutex);
 	g_cond_signal (test->cond);
 	g_mutex_unlock (test->mutex);
