@@ -307,12 +307,13 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 	watermark = ((CatalinaZlibTransform*)transform)->priv->watermark;
 
 	/* only compress if the input buffer is large enough */
-	//if (input_length <= watermark) {
-		//*output = g_malloc0 (input_length + 1);
-		//memcpy (*output, input, input_length);
-		//*output [input_length] = FALSE;
-		//return TRUE;
-	//}
+	if (input_length <= watermark) {
+		*output = g_malloc0 (input_length + 1);
+		*output_length = input_length + 1;
+		memcpy (*output, input, input_length);
+		*output [input_length] = (gchar)FALSE;
+		return TRUE;
+	}
 
 	/* get the zlib compression level */
 	level = ((CatalinaZlibTransform*)transform)->priv->level;

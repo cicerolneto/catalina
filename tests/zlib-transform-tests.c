@@ -83,6 +83,45 @@ test6 (void)
 	g_assert_cmpint (watermark,==,9);
 }
 
+static void
+test7 (void)
+{
+	/* make sure a buffer <= than watermark is not compressed */
+	CatalinaTransform *t = catalina_zlib_transform_new ();
+	g_object_set (t, "watermark", 8, NULL);
+	gchar buffer[] = {
+		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+	};
+
+	gchar *outbuf = NULL;
+	gsize  outlen = 0;
+	g_assert (catalina_transform_write (t, buffer, sizeof (buffer), &outbuf, &outlen, NULL));
+	g_assert_cmpint (outlen,==,9);
+	g_assert_cmpint (outbuf [0],==,0x01);
+	g_assert_cmpint (outbuf [1],==,0x02);
+	g_assert_cmpint (outbuf [2],==,0x03);
+	g_assert_cmpint (outbuf [3],==,0x04);
+	g_assert_cmpint (outbuf [4],==,0x05);
+	g_assert_cmpint (outbuf [5],==,0x06);
+	g_assert_cmpint (outbuf [6],==,0x07);
+	g_assert_cmpint (outbuf [7],==,0x08);
+	g_assert_cmpint (outbuf [8],==,0x00);
+
+	gchar *inbuf = NULL;
+	gsize  inlen = 0;
+
+	g_assert (catalina_transform_read (t, outbuf, outlen, &inbuf, &inlen, NULL));
+	g_assert_cmpint (inlen,==,8);
+	g_assert_cmpint (inbuf [0],==,0x01);
+	g_assert_cmpint (inbuf [1],==,0x02);
+	g_assert_cmpint (inbuf [2],==,0x03);
+	g_assert_cmpint (inbuf [3],==,0x04);
+	g_assert_cmpint (inbuf [4],==,0x05);
+	g_assert_cmpint (inbuf [5],==,0x06);
+	g_assert_cmpint (inbuf [6],==,0x07);
+	g_assert_cmpint (inbuf [7],==,0x08);
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
@@ -95,6 +134,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaZlibTransform/read-write(1)", test2);
 	g_test_add_func ("/CatalinaZlibTransform/read-write(2)", test3);
 	g_test_add_func ("/CatalinaZlibTransform/read-write(3)", test4);
+	g_test_add_func ("/CatalinaZlibTransform/read-write(4)", test7);
 	g_test_add_func ("/CatalinaZlibTransform/:level", test5);
 	g_test_add_func ("/CatalinaZlibTransform/:watermark", test6);
 
