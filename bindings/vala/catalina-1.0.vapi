@@ -42,9 +42,9 @@ namespace Catalina {
 		public bool close_finish (GLib.AsyncResult result) throws Catalina.StorageError;
 		public void get_async (string key, size_t key_length, GLib.AsyncReadyCallback callback);
 		public bool get_finish (GLib.AsyncResult result, out string value, size_t value_length) throws Catalina.StorageError;
-		public void set_async (string key, size_t key_length, string value, size_t value_length, GLib.AsyncReadyCallback callback);
+		public void set_async (ulong txn_id, string key, size_t key_length, string value, size_t value_length, GLib.AsyncReadyCallback callback);
 		public bool set_finish (GLib.AsyncResult result) throws Catalina.StorageError;
-		public void get_value_async (string key, size_t key_length, GLib.AsyncReadyCallback callback);
+		public void get_value_async (ulong txn_id, string key, size_t key_length, GLib.AsyncReadyCallback callback);
 		public bool get_value_finish (GLib.AsyncResult result, Value value) throws Catalina.StorageError;
 		public void set_value_async (string key, size_t key_length, Value value, GLib.AsyncReadyCallback callback);
 		public bool set_value_finish (GLib.AsyncResult result) throws Catalina.StorageError;
@@ -53,9 +53,9 @@ namespace Catalina {
 		public bool open (string env_dir, string name) throws Catalina.StorageError;
 		public bool close () throws Catalina.StorageError;
 		public bool get (string key, size_t key_length, out string value, out size_t value_length) throws Catalina.StorageError;
-		public bool set (string key, size_t key_length, string value, size_t value_length) throws Catalina.StorageError;
+		public bool set (ulong txn_id, string key, size_t key_length, string value, size_t value_length) throws Catalina.StorageError;
 		public bool get_value (string key, size_t key_length, Value value) throws Catalina.StorageError;
-		public bool set_value (string key, size_t key_length, Value value) throws Catalina.StorageError;
+		public bool set_value (ulong txn_id, string key, size_t key_length, Value value) throws Catalina.StorageError;
 
 		/* transaction control */
 		public void transaction_begin_async (GLib.AsyncReadyCallback callback);
