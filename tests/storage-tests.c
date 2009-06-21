@@ -154,7 +154,7 @@ test10 (void)
 	AsyncTest *test = async_test_new ();
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	catalina_storage_set_async (storage, TEST_KEY, -1, TEST_DATA, -1, test10_cb, test);
+	catalina_storage_set_async (storage, 0, TEST_KEY, -1, TEST_DATA, -1, test10_cb, test);
 	async_test_wait (test);
 	g_assert (catalina_storage_close (storage, NULL));
 }
@@ -164,7 +164,7 @@ test11 (void)
 {
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	g_assert (catalina_storage_set (storage, TEST_KEY, -1, TEST_DATA, -1, NULL));
+	g_assert (catalina_storage_set (storage, 0, TEST_KEY, -1, TEST_DATA, -1, NULL));
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
@@ -200,7 +200,7 @@ test14 (void)
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	if (!catalina_storage_set (storage, TEST_KEY_ZLIB, -1, TEST_DATA_ZLIB, -1, &error))
+	if (!catalina_storage_set (storage, 0, TEST_KEY_ZLIB, -1, TEST_DATA_ZLIB, -1, &error))
 		g_error ("%s", error->message);
 	g_assert (catalina_storage_close (storage, NULL));
 }
@@ -230,7 +230,7 @@ test15 (void)
 	GValue v = {0,};
 	g_value_init (&v, G_TYPE_STRING);
 	g_value_set_string (&v, "abc123");
-	g_assert (catalina_storage_set_value (storage, TEST_KEY_BINARY, -1, &v, NULL));
+	g_assert (catalina_storage_set_value (storage, 0, TEST_KEY_BINARY, -1, &v, NULL));
 	catalina_storage_get_value_async (storage, TEST_KEY_BINARY, -1, test15_cb, test);
 	async_test_wait (test);
 	g_assert (catalina_storage_close (storage, NULL));
@@ -259,7 +259,7 @@ test16 (void)
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	catalina_storage_set_value_async (storage, TEST_KEY_BINARY, -1, &value, test16_cb, test);
+	catalina_storage_set_value_async (storage, 0, TEST_KEY_BINARY, -1, &value, test16_cb, test);
 	async_test_wait (test);
 	g_assert (catalina_storage_close (storage, NULL));
 }
@@ -273,7 +273,7 @@ test17 (void)
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	g_assert (catalina_storage_set_value (storage, TEST_KEY_BINARY, -1, &v, NULL));
+	g_assert (catalina_storage_set_value (storage, 0, TEST_KEY_BINARY, -1, &v, NULL));
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
@@ -304,7 +304,7 @@ test19 (void)
 	g_value_set_object (&v1, person);
 	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	if (!catalina_storage_set_value (storage, "mock-person", -1, &v1, &error))
+	if (!catalina_storage_set_value (storage, 0, "mock-person", -1, &v1, &error))
 		g_error ("%s", error->message);
 	g_assert (catalina_storage_close (storage, NULL));
 }
@@ -338,41 +338,158 @@ test21 (void)
 }
 
 static void
+test22_cb2 (GObject      *obj,
+            GAsyncResult *result,
+            gpointer      user_data)
+{
+	CatalinaStorage *storage = (void*)obj;
+	GError *error = NULL;
+	if (!catalina_storage_transaction_commit_finish (storage, result, &error))
+		g_error ("%s", error->message);
+	async_test_complete (user_data);
+}
+
+static void
+test22_cb (GObject      *obj,
+           GAsyncResult *result,
+           gpointer      user_data)
+{
+	CatalinaStorage *storage = (void*)obj;
+	gulong txn_id = catalina_storage_transaction_begin_finish (storage, result);
+	g_assert (txn_id == 1);
+	g_assert (!catalina_storage_close (storage, NULL)); // expect error, pending txn
+	catalina_storage_transaction_commit_async (storage, txn_id, test22_cb2, user_data);
+}
+
+static void
 test22 (void)
 {
+	AsyncTest *test = async_test_new ();
+	GError *error = NULL;
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	catalina_storage_transaction_begin (storage);
+	catalina_storage_transaction_begin_async (storage, test22_cb, test);
+	async_test_wait (test);
 	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test23_cb3 (GObject      *obj,
+            GAsyncResult *result,
+            gpointer      user_data)
+{
+	CatalinaStorage *storage = (void*)obj;
+	AsyncTest *test = user_data;
+	GValue v = {0,};
+	GError *error = NULL;
+	if (!catalina_storage_transaction_commit_finish (storage, result, &error))
+		g_error ("%s", error->message);
+	g_assert (catalina_storage_get_value (storage, "test23", -1, &v, NULL));
+	g_assert_cmpint (g_value_get_int (&v),==,987789);
+	async_test_complete (test);
+}
+
+static void
+test23_cb2 (GObject      *obj,
+            GAsyncResult *result,
+            gpointer      user_data)
+{
+	CatalinaStorage *storage = (void*)obj;
+	GError *error = NULL;
+	if (!catalina_storage_set_value_finish (storage, result, &error))
+		g_error ("%s", error->message);
+}
+
+static void
+test23_cb (GObject      *obj,
+           GAsyncResult *result,
+           gpointer      user_data)
+{
+	AsyncTest *test = user_data;
+	CatalinaStorage *storage = (void*)obj;
+	GValue v = {0,};
+	g_value_init (&v, G_TYPE_INT);
+	g_value_set_int (&v, 987789);
+	test->txn1 = catalina_storage_transaction_begin_finish (storage, result);
+	catalina_storage_set_value_async (storage, test->txn1, "test23", -1, &v, test23_cb2, user_data);
+	catalina_storage_transaction_commit_async (storage, test->txn1, test23_cb3, user_data);
 }
 
 static void
 test23 (void)
 {
+	AsyncTest *test = async_test_new ();
+	GError *error = NULL;
 	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	catalina_storage_transaction_begin (storage);
-	g_assert (catalina_storage_transaction_commit (storage, NULL));
+	GValue v = {0,}, v1 = {0,};
+	g_value_init (&v, G_TYPE_INT);
+	g_value_set_int (&v, 123321);
+	if (!catalina_storage_set_value (storage, 0, "test23", -1, &v, &error))
+		g_error ("%s", error->message);
+	g_assert (catalina_storage_get_value (storage, "test23", -1, &v1, NULL));
+	g_assert_cmpint (g_value_get_int (&v),==,123321);
+	catalina_storage_transaction_begin_async (storage, test23_cb, test);
+	async_test_wait (test);
 	g_assert (catalina_storage_close (storage, NULL));
+}
+
+static void
+test24_cb3 (GObject      *obj,
+            GAsyncResult *result,
+            gpointer      user_data)
+{
+	AsyncTest *test = user_data;
+	CatalinaStorage *storage = (void*)obj;
+	catalina_storage_transaction_cancel_finish (storage, result);
+	GValue v = {0,};
+	g_assert (catalina_storage_get_value (storage, "test-24", -1, &v, NULL));
+	g_assert_cmpint (g_value_get_int(&v),==,456654);
+	async_test_complete (test);
+}
+
+static void
+test24_cb2 (GObject      *obj,
+            GAsyncResult *result,
+            gpointer      user_data)
+{
+	g_error ("Shouldn't get set_value callback, txn was cancelled");
+}
+
+static void
+test24_cb (GObject      *obj,
+           GAsyncResult *result,
+           gpointer      user_data)
+{
+	AsyncTest *test = user_data;
+	CatalinaStorage *storage = (void*)obj;
+	gulong txn_id;
+	if (!(txn_id = catalina_storage_transaction_begin_finish (storage, result)))
+		g_error ("Invalid txn id %lu", txn_id);
+	GValue v = {0,};
+	g_value_init (&v, G_TYPE_INT);
+	g_value_set_int (&v, 123123);
+	test->txn1 = txn_id;
+	catalina_storage_set_value_async (storage, txn_id, "test-24", -1, &v, test24_cb2, test);
+	catalina_storage_transaction_cancel_async (storage, txn_id, test24_cb3, test);
 }
 
 static void
 test24 (void)
 {
+	AsyncTest *test = async_test_new ();
 	CatalinaStorage *storage = catalina_storage_new ();
+	g_object_set (storage, "formatter", catalina_binary_formatter_new (), NULL);
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	catalina_storage_transaction_begin (storage);
-	catalina_storage_transaction_cancel (storage);
-	g_assert (catalina_storage_close (storage, NULL));
-}
-
-static void
-test25 (void)
-{
-	CatalinaStorage *storage = catalina_storage_new ();
-	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
-	catalina_storage_transaction_begin (storage);
-	catalina_storage_transaction_rollback (storage);
+	GValue v = {0,};
+	GError *error = NULL;
+	g_value_init (&v, G_TYPE_INT);
+	g_value_set_int (&v, 456654);
+	if (!catalina_storage_set_value (storage, 0, "test-24", -1, &v, &error))
+		g_error ("%s", error->message);
+	catalina_storage_transaction_begin_async (storage, test24_cb, test);
+	async_test_wait (test);
 	g_assert (catalina_storage_close (storage, NULL));
 }
 
@@ -413,7 +530,6 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaStorage/transaction_begin(1)", test22);
 	g_test_add_func ("/CatalinaStorage/transaction_commit(1)", test23);
 	g_test_add_func ("/CatalinaStorage/transaction_cancel(1)", test24);
-	g_test_add_func ("/CatalinaStorage/transaction_rollback(1)", test25);
 
 	return g_test_run ();
 }

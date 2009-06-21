@@ -22,7 +22,7 @@ test2 (void)
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
 	g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
-	g_assert (catalina_storage_set (storage, TEST_KEY_STRING, -1, TEST_DATA_STRING, -1, NULL));
+	g_assert (catalina_storage_set (storage, 0, TEST_KEY_STRING, -1, TEST_DATA_STRING, -1, NULL));
 	g_assert (catalina_storage_get (storage, TEST_KEY_STRING, -1, &outbuf, &outlen, NULL));
 	g_assert_cmpint (outlen,==,strlen (TEST_DATA_STRING) + 1);
 	g_assert_cmpstr (outbuf,==,TEST_DATA_STRING);
@@ -37,7 +37,7 @@ test3 (void)
 	CatalinaStorage *storage = catalina_storage_new ();
 	g_assert (catalina_storage_open (storage, ".", "storage-tests.db", NULL));
 	g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
-	g_assert (catalina_storage_set (storage, LONG_TEST_KEY, -1, LONG_TEST_DATA, -1, NULL));
+	g_assert (catalina_storage_set (storage, 0, LONG_TEST_KEY, -1, LONG_TEST_DATA, -1, NULL));
 	g_assert (catalina_storage_get (storage, LONG_TEST_KEY, -1, &outbuf, &outlen, NULL));
 	g_assert_cmpint (outlen,==,strlen (LONG_TEST_DATA) + 1);
 	g_assert_cmpstr (outbuf,==,LONG_TEST_DATA);
@@ -55,7 +55,7 @@ test4 (void)
 	g_object_set (storage, "transform", catalina_zlib_transform_new (), NULL);
 	g_value_init (&v1, G_TYPE_STRING);
 	g_value_set_string (&v1, "my test string");
-	if (!catalina_storage_set_value (storage, "v-key", -1, &v1, &error))
+	if (!catalina_storage_set_value (storage, 0, "v-key", -1, &v1, &error))
 		g_error ("%s", error->message);
 	if (!catalina_storage_get_value (storage, "v-key", -1, &v2, &error))
 		g_error ("%s", error->message);

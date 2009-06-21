@@ -58,10 +58,12 @@ namespace Catalina {
 		public bool set_value (string key, size_t key_length, Value value) throws Catalina.StorageError;
 
 		/* transaction control */
-		public void transaction_begin ();
-		public bool transaction_commit () throws Catalina.StorageError;
-		public void transaction_cancel ();
-		public void transaction_rollback ();
+		public void transaction_begin_async (GLib.AsyncReadyCallback callback);
+		public ulong transaction_begin_finish (GLib.AsyncResult result);
+		public void transaction_commit_async (ulong txn_id, GLib.AsyncReadyCallback callback);
+		public bool transaction_commit_finish (GLib.AsyncResult result) throws Catalina.StorageError;
+		public void transaction_cancel_async (ulong txn_id, GLib.AsyncReadyCallback callback);
+		public void transaction_cancel_finish (GLib.AsyncResult result);
 	}
 
 	public class Transform: GLib.Object {

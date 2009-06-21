@@ -48,6 +48,7 @@ G_BEGIN_DECLS
  * @CATALINA_STORAGE_ERROR_STATE: Operation is invalid for the current state
  * @CATALINA_STORAGE_ERROR_DB: An error occurred with BDB.
  * @CATALINA_STORAGE_ERROR_NO_SUCH_KEY: The key requested was not found
+ * @CATALINA_STORAGE_ERROR_NO_SUCH_TXN: The transaction provided is invalid
  *
  * #CatalinaStorage error enumeration.
  */
@@ -55,6 +56,7 @@ typedef enum {
 	CATALINA_STORAGE_ERROR_STATE,
 	CATALINA_STORAGE_ERROR_DB,
 	CATALINA_STORAGE_ERROR_NO_SUCH_KEY,
+	CATALINA_STORAGE_ERROR_NO_SUCH_TXN,
 } CatalinaStorageError;
 
 typedef struct _CatalinaStorage        CatalinaStorage;
@@ -113,6 +115,7 @@ gboolean         catalina_storage_get              (CatalinaStorage      *storag
                                                     gsize                *value_length,
                                                     GError              **error);
 void             catalina_storage_set_async        (CatalinaStorage      *storage,
+                                                    gulong                txn_id,
                                                     const gchar          *key,
                                                     gssize                key_length,
                                                     const gchar          *value,
@@ -123,6 +126,7 @@ gboolean         catalina_storage_set_finish       (CatalinaStorage      *storag
                                                     GAsyncResult         *result,
                                                     GError              **error);
 gboolean         catalina_storage_set              (CatalinaStorage      *storage,
+                                                    gulong                txn_id,
                                                     const gchar          *key,
                                                     gssize                key_length,
                                                     const gchar          *value,
@@ -143,6 +147,7 @@ gboolean         catalina_storage_get_value        (CatalinaStorage       *stora
                                                     GValue                *value,
                                                     GError               **error);
 void             catalina_storage_set_value_async  (CatalinaStorage       *storage,
+                                                    gulong                 txn_id,
                                                     const gchar           *key,
                                                     gssize                 key_length,
                                                     const GValue          *value,
@@ -152,6 +157,7 @@ gboolean         catalina_storage_set_value_finish (CatalinaStorage       *stora
                                                     GAsyncResult          *result,
                                                     GError               **error);
 gboolean         catalina_storage_set_value        (CatalinaStorage       *storage,
+                                                    gulong                 txn_id,
                                                     const gchar           *key,
                                                     gssize                 key_length,
                                                     const GValue          *value,
@@ -173,11 +179,24 @@ GQuark           catalina_storage_error_quark      (void);
 
 gulong           catalina_storage_count_keys       (CatalinaStorage   *storage);
 
-void             catalina_storage_transaction_begin    (CatalinaStorage   *storage);
-gboolean         catalina_storage_transaction_commit   (CatalinaStorage   *storage,
-                                                        GError           **error);
-void             catalina_storage_transaction_cancel   (CatalinaStorage   *storage);
-void             catalina_storage_transaction_rollback (CatalinaStorage   *storage);
+void             catalina_storage_transaction_begin_async     (CatalinaStorage      *storage,
+                                                               GAsyncReadyCallback   callback,
+                                                               gpointer              user_data);
+gulong           catalina_storage_transaction_begin_finish    (CatalinaStorage      *storage,
+                                                               GAsyncResult         *result);
+void             catalina_storage_transaction_commit_async    (CatalinaStorage      *stroage,
+                                                               gulong                txn_id,
+                                                               GAsyncReadyCallback   callback,
+                                                               gpointer              user_data);
+gboolean         catalina_storage_transaction_commit_finish   (CatalinaStorage      *storage,
+                                                               GAsyncResult         *result,
+                                                               GError              **error);
+void             catalina_storage_transaction_cancel_async    (CatalinaStorage      *storage,
+                                                               gulong                txn_id,
+                                                               GAsyncReadyCallback   callback,
+                                                               gpointer              user_data);
+void             catalina_storage_transaction_cancel_finish   (CatalinaStorage      *storage,
+                                                               GAsyncResult         *result);
 
 G_END_DECLS
 
