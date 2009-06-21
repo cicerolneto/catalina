@@ -64,7 +64,9 @@ namespace Beatdown {
 		public string website    { get; set; }
 		public string email      { get; set; }
 		public bool   married    { get; set; }
-		public Gender gender     { get; set; }
+
+		/* G_TYPE_ENUM and TimeVal serialization not yet supported */
+		public Gender gender      { get; set; }
 		public TimeVal birth_date { get; set; }
 	}
 }
