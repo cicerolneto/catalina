@@ -1386,6 +1386,8 @@ catalina_storage_count_keys (CatalinaStorage *storage)
 /**
  * catalina_storage_transaction_begin_async:
  * @storage: A #CatalinaStorage
+ * @callback: a callback to execute when the transaction begins
+ * @user_data: data for @callback
  *
  * Begins a new transaction.  Catalina does not support recursive transactions currently, but it
  * does support concurrent transactions using the resulting transaction id.  Consumers can implement
@@ -1521,6 +1523,8 @@ catalina_storage_transaction_commit_finish (CatalinaStorage  *storage,
  * catalina_storage_transaction_cancel_async:
  * @storage: A #CatalinaStorage
  * @txn_id: A transaction id retrieved from catalina_storage_transaction_begin_async()
+ * @callback: a callback to execute when the transaction is cancelled
+ * @user_data: data for @callback
  *
  * Asynchronously cancels transaction @txn_id.  There is no need to call
  * catalina_storage_transaction_rollback_async() as the state will be rolled back automatically.

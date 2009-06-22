@@ -184,7 +184,7 @@ void             catalina_storage_transaction_begin_async     (CatalinaStorage  
                                                                gpointer              user_data);
 gulong           catalina_storage_transaction_begin_finish    (CatalinaStorage      *storage,
                                                                GAsyncResult         *result);
-void             catalina_storage_transaction_commit_async    (CatalinaStorage      *stroage,
+void             catalina_storage_transaction_commit_async    (CatalinaStorage      *storage,
                                                                gulong                txn_id,
                                                                GAsyncReadyCallback   callback,
                                                                gpointer              user_data);
