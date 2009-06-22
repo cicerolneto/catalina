@@ -31,7 +31,7 @@ namespace Beatdown {
 				p.website = "http://example.com";
 				p.email = "example@example.com";
 				v.set_object (p);
-				storage.set_value_async ("%d".printf (i), -1, v, (_, result) => {
+				storage.set_value_async (0, "%d".printf (i), -1, v, (_, result) => {
 					AtomicInt.inc (ref count);
 					try { storage.set_value_finish (result); }
 					catch { error ("Could not store value"); }

@@ -44,9 +44,9 @@ namespace Catalina {
 		public bool get_finish (GLib.AsyncResult result, out string value, size_t value_length) throws Catalina.StorageError;
 		public void set_async (ulong txn_id, string key, size_t key_length, string value, size_t value_length, GLib.AsyncReadyCallback callback);
 		public bool set_finish (GLib.AsyncResult result) throws Catalina.StorageError;
-		public void get_value_async (ulong txn_id, string key, size_t key_length, GLib.AsyncReadyCallback callback);
+		public void get_value_async (string key, size_t key_length, GLib.AsyncReadyCallback callback);
 		public bool get_value_finish (GLib.AsyncResult result, Value value) throws Catalina.StorageError;
-		public void set_value_async (string key, size_t key_length, Value value, GLib.AsyncReadyCallback callback);
+		public void set_value_async (ulong txn_id, string key, size_t key_length, Value value, GLib.AsyncReadyCallback callback);
 		public bool set_value_finish (GLib.AsyncResult result) throws Catalina.StorageError;
 
 		/* synchronous methods */
