@@ -1067,7 +1067,7 @@ catalina_binary_formatter_write_double (CatalinaBinaryFormatter *formatter,
 	g_return_val_if_fail (buffer != NULL, FALSE);
 	g_return_val_if_fail (buffer_length != NULL, FALSE);
 
-	dbuf = g_strdup_printf ("%g", value);
+	dbuf = g_strdup_printf ("%0.8g", value);
 	if (!catalina_binary_formatter_write_string (formatter,
 	                                             dbuf, -1,
 	                                             buffer, buffer_length,
@@ -1119,8 +1119,13 @@ catalina_binary_formatter_read_double (CatalinaBinaryFormatter *formatter,
 
 	errno = 0;
 	*value = strtod (dbuf, NULL);
-	if (errno)
+	if (errno) {
+		g_set_error (error, CATALINA_BINARY_FORMATTER_ERROR,
+		             CATALINA_BINARY_FORMATTER_ERROR_BAD_DATA,
+		             "The precision of the double could not be represented "
+		             "on the current platform.");
 		goto cleanup;
+	}
 
 	success = TRUE;
 
