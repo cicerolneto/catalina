@@ -171,17 +171,26 @@ test15 (void)
 	gchar *buffer = NULL;
 	guint length = 0;
 
-	g_assert (catalina_binary_formatter_write_long (NULL, G_MAXUINT64, &buffer, &length, NULL));
+	g_assert (catalina_binary_formatter_write_long (NULL, G_MAXULONG, &buffer, &length, NULL));
 	g_assert_cmpint (length,==,9);
 	g_assert_cmpint (((guchar)buffer[0]),==,BINARY_FORMATTER_TYPE_LONG);
 	g_assert_cmpint (((guchar)buffer[1]),==,255);
 	g_assert_cmpint (((guchar)buffer[2]),==,255);
 	g_assert_cmpint (((guchar)buffer[3]),==,255);
 	g_assert_cmpint (((guchar)buffer[4]),==,255);
-	g_assert_cmpint (((guchar)buffer[5]),==,255);
-	g_assert_cmpint (((guchar)buffer[6]),==,255);
-	g_assert_cmpint (((guchar)buffer[7]),==,255);
-	g_assert_cmpint (((guchar)buffer[8]),==,255);
+
+	if (sizeof (glong) == 4) {
+		g_assert_cmpint (((guchar)buffer[5]),==,0);
+		g_assert_cmpint (((guchar)buffer[6]),==,0);
+		g_assert_cmpint (((guchar)buffer[7]),==,0);
+		g_assert_cmpint (((guchar)buffer[8]),==,0);
+	}
+	else {
+		g_assert_cmpint (((guchar)buffer[5]),==,255);
+		g_assert_cmpint (((guchar)buffer[6]),==,255);
+		g_assert_cmpint (((guchar)buffer[7]),==,255);
+		g_assert_cmpint (((guchar)buffer[8]),==,255);
+	}
 }
 
 static void
@@ -200,17 +209,26 @@ test17 (void)
 	gchar *buffer = NULL;
 	guint length = 0;
 
-	g_assert (catalina_binary_formatter_write_ulong (NULL, G_MAXUINT64, &buffer, &length, NULL));
+	g_assert (catalina_binary_formatter_write_ulong (NULL, G_MAXULONG, &buffer, &length, NULL));
 	g_assert_cmpint (length,==,9);
 	g_assert_cmpint (((guchar)buffer[0]),==,BINARY_FORMATTER_TYPE_ULONG);
 	g_assert_cmpint (((guchar)buffer[1]),==,255);
 	g_assert_cmpint (((guchar)buffer[2]),==,255);
 	g_assert_cmpint (((guchar)buffer[3]),==,255);
 	g_assert_cmpint (((guchar)buffer[4]),==,255);
-	g_assert_cmpint (((guchar)buffer[5]),==,255);
-	g_assert_cmpint (((guchar)buffer[6]),==,255);
-	g_assert_cmpint (((guchar)buffer[7]),==,255);
-	g_assert_cmpint (((guchar)buffer[8]),==,255);
+
+	if (sizeof (gulong) == 4) {
+		g_assert_cmpint (((guchar)buffer[5]),==,0);
+		g_assert_cmpint (((guchar)buffer[6]),==,0);
+		g_assert_cmpint (((guchar)buffer[7]),==,0);
+		g_assert_cmpint (((guchar)buffer[8]),==,0);
+	}
+	else {
+		g_assert_cmpint (((guchar)buffer[5]),==,255);
+		g_assert_cmpint (((guchar)buffer[6]),==,255);
+		g_assert_cmpint (((guchar)buffer[7]),==,255);
+		g_assert_cmpint (((guchar)buffer[8]),==,255);
+	}
 }
 
 static void
@@ -220,7 +238,13 @@ test18 (void)
 	gulong value;
 
 	g_assert (catalina_binary_formatter_read_ulong (NULL, &value, (gchar*)&buffer [0], 9, NULL));
-	g_assert_cmpint ((guint64)value,==,G_GUINT64_CONSTANT(0xFFFFFFFFFFFFFFFF));
+
+	if (sizeof (gulong) == 4) {
+		g_assert_cmpint (value,==,0xFFFFFFFF);
+	}
+	else {
+		g_assert_cmpint ((guint64)value,==,G_GUINT64_CONSTANT(0xFFFFFFFFFFFFFFFF));
+	}
 }
 
 static void
@@ -325,7 +349,7 @@ test25 (void)
 	g_assert_cmpint (((guchar)buffer[1]),==,0x00);
 	g_assert_cmpint (((guchar)buffer[2]),==,0x00);
 	g_assert_cmpint (((guchar)buffer[3]),==,0x00);
-	g_assert_cmpint (((guchar)buffer[4]),==,12);
+	g_assert_cmpint (((guchar)buffer[4]),==,14);
 	g_assert_cmpint (((guchar)buffer[5]),==,'1');
 	g_assert_cmpint (((guchar)buffer[6]),==,'.');
 	g_assert_cmpint (((guchar)buffer[7]),==,'2');
@@ -333,11 +357,13 @@ test25 (void)
 	g_assert_cmpint (((guchar)buffer[9]),==,'1');
 	g_assert_cmpint (((guchar)buffer[10]),==,'3');
 	g_assert_cmpint (((guchar)buffer[11]),==,'2');
-	g_assert_cmpint (((guchar)buffer[12]),==,'e');
-	g_assert_cmpint (((guchar)buffer[13]),==,'+');
-	g_assert_cmpint (((guchar)buffer[14]),==,'1');
-	g_assert_cmpint (((guchar)buffer[15]),==,'0');
-	g_assert_cmpint (((guchar)buffer[16]),==,'\0');
+	g_assert_cmpint (((guchar)buffer[12]),==,'1');
+	g_assert_cmpint (((guchar)buffer[13]),==,'1');
+	g_assert_cmpint (((guchar)buffer[14]),==,'e');
+	g_assert_cmpint (((guchar)buffer[15]),==,'+');
+	g_assert_cmpint (((guchar)buffer[16]),==,'1');
+	g_assert_cmpint (((guchar)buffer[17]),==,'0');
+	g_assert_cmpint (((guchar)buffer[18]),==,'\0');
 }
 
 static void
@@ -347,7 +373,7 @@ test26 (void)
 	gdouble v = 0;
 
 	g_assert (catalina_binary_formatter_read_double (NULL, &v, (gchar*)&buffer[0], sizeof (buffer), NULL));
-	g_assert_cmpint (v,==,12313200000); // lost precision
+	g_assert_cmpint (v,==,12313200000ull); // lost precision
 }
 
 static void
@@ -383,7 +409,7 @@ test28 (void)
 	gfloat v = 0;
 
 	g_assert (catalina_binary_formatter_read_float (NULL, &v, (gchar*)&buffer[0], sizeof (buffer), NULL));
-	g_assert_cmpint (v,==,12313199616); // lost precision
+	g_assert_cmpint (v,==,12313199616ull); // lost precision
 }
 
 static void
@@ -696,12 +722,14 @@ test43 (void)
 	gchar *b = NULL;
 	gsize l = 0;
 	GValue v = {0,}, v2 = {0,};
+	GError *error = NULL;
 	g_value_init (&v, G_TYPE_DOUBLE);
 	v.data[0].v_double = G_MINDOUBLE;
 	CatalinaFormatter *f = catalina_binary_formatter_new ();
 	g_assert (catalina_formatter_serialize (f, &v, &b, &l, NULL));
 	g_assert (b != NULL && l > 0);
-	g_assert (catalina_formatter_deserialize (f, &v2, b, l, NULL));
+	if (!catalina_formatter_deserialize (f, &v2, b, l, &error))
+		g_error ("%s", error->message);
 	g_assert_cmpint (v.data[0].v_double,==,v2.data[0].v_double);
 }
 
@@ -750,7 +778,7 @@ main (gint   argc,
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<long>(1)", test34);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<long>(2)", test32);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<double>(1)", test35);
-	g_test_add_func ("/CatalinaBinaryFormatter/serialization<double>(1)", test43);
+	g_test_add_func ("/CatalinaBinaryFormatter/serialization<double>(2)", test43);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<uint>(1)", test36);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<uint64>(1)", test37);
 	g_test_add_func ("/CatalinaBinaryFormatter/serialization<ulong>(1)", test38);
