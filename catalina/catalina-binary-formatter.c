@@ -704,7 +704,7 @@ catalina_binary_formatter_write_long (CatalinaBinaryFormatter *formatter,
 
 	*buffer = g_malloc0 (9);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_LONG;
-	memcpy ((*buffer) + 1, &be_value, 8);
+	memcpy ((*buffer) + 1, &be_value, sizeof (glong));
 	*buffer_length = 9;
 
 	return TRUE;
@@ -773,7 +773,7 @@ catalina_binary_formatter_write_ulong (CatalinaBinaryFormatter *formatter,
 
 	*buffer = g_malloc0 (9);
 	(*buffer) [0] = (guchar)BINARY_FORMATTER_TYPE_ULONG;
-	memcpy ((*buffer) + 1, &be_value, 8);
+	memcpy ((*buffer) + 1, &be_value, sizeof (gulong));
 	*buffer_length = 9;
 
 	return TRUE;
