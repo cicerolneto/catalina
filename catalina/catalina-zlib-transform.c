@@ -311,7 +311,7 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 		*output = g_malloc0 (input_length + 1);
 		*output_length = input_length + 1;
 		memcpy (*output, input, input_length);
-		*output [input_length] = (gchar)FALSE;
+		(*output) [input_length] = (guchar)FALSE;
 		return TRUE;
 	}
 
