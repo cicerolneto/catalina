@@ -8,16 +8,3 @@ CatalinaStorage
     - Add method for traversing key/value pairs and give ability to do it in
       parallel or serial.
 
-    CatalinaStorage now has transactions, but its limited to a single
-    transaction at a time for the entire object.  This is because its how
-    TDB works.  Using Iris, we should be able to get around this simply by
-    processing transactions serially.
-
-    To do this, for each transaction we create a unique word-size and a short
-    bit of state that can be kept within a hash-table.  In the state, we
-    keep a linked list of IrisMessage's that are requests to alter the
-    transaction.
-
-    Upon transaction commit, the next pending transaction will be started
-    and each message applied from within that transaction.
-
