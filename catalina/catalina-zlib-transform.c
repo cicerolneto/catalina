@@ -308,7 +308,13 @@ catalina_zlib_transform_real_write (CatalinaTransform  *transform,
 
 	/* only compress if the input buffer is large enough */
 	if (input_length <= watermark) {
-		*output = g_malloc0 (input_length + 1);
+		if (!(*output = g_malloc0 (input_length + 1))) {
+			g_set_error (error, CATALINA_ZLIB_TRANSFORM_ERROR,
+			             CATALINA_ZLIB_TRANSFORM_ERROR_ZLIB,
+			             "Could not allocate %lu bytes for buffer",
+			             (gulong)input_length + 1);
+			return FALSE;
+		}
 		*output_length = input_length + 1;
 		memcpy (*output, input, input_length);
 		(*output) [input_length] = (guchar)FALSE;
